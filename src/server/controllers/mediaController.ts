@@ -9,7 +9,10 @@ import { logger } from '../services/loggerService';
 
 export const uploadMedia = async (req: Request, res: Response) => {
   try {
-    req.setTimeout(0); // Disable socket timeout for large video uploads from phones
+    req.setTimeout(0); // Disable socket timeout for large video uploads
+    if (req.socket) {
+      req.socket.setNoDelay(true); // Disable Nagle's algorithm for max throughput
+    }
 
     if (!fs.existsSync(UPLOADS_DIR)) {
       fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -17,7 +20,7 @@ export const uploadMedia = async (req: Request, res: Response) => {
 
     const rawFileName = req.headers['x-filename']
       ? decodeURIComponent(req.headers['x-filename'] as string)
-      : `mobile_video_${Date.now()}.mp4`;
+      : `video_${Date.now()}.mp4`;
 
     const sanitizedFileName = path.basename(rawFileName).replace(/[^a-zA-Z0-9._ -]/g, '_');
     const ext = path.extname(sanitizedFileName) || '.mp4';
@@ -25,7 +28,10 @@ export const uploadMedia = async (req: Request, res: Response) => {
     const uniqueFileName = `${baseName}_${Date.now()}${ext}`;
     const targetFilePath = path.join(UPLOADS_DIR, uniqueFileName);
 
-    const writeStream = fs.createWriteStream(targetFilePath);
+    // High throughput 4MB stream buffer
+    const writeStream = fs.createWriteStream(targetFilePath, {
+      highWaterMark: 4 * 1024 * 1024,
+    });
 
     req.pipe(writeStream);
 
@@ -47,18 +53,7 @@ export const uploadMedia = async (req: Request, res: Response) => {
     writeStream.on('finish', async () => {
       try {
         const stats = await fs.promises.stat(targetFilePath);
-        let meta;
-        try {
-          meta = await ffmpegService.probeMetadata(targetFilePath);
-        } catch {
-          meta = {
-            duration: 0,
-            width: 0,
-            height: 0,
-            resolution: 'Unknown',
-            codec: ext.replace('.', '').toLowerCase(),
-          };
-        }
+        const cleanTitle = baseName.replace(/[._-]/g, ' ').trim() || 'Uploaded Movie';
 
         // Find or create 'Mobile Uploads' folder
         let mobileFolder = await prisma.libraryFolder.findFirst({
@@ -75,35 +70,23 @@ export const uploadMedia = async (req: Request, res: Response) => {
           });
         }
 
-        const cleanTitle = baseName.replace(/[._-]/g, ' ').trim() || 'Mobile Video';
-
+        // Instant DB creation for zero-lag response
         const media = await prisma.media.create({
           data: {
             title: cleanTitle,
             filePath: targetFilePath,
             fileSize: stats.size,
-            duration: meta.duration,
-            resolution: meta.resolution,
-            width: meta.width,
-            height: meta.height,
-            codec: meta.codec,
-            audioCodec: meta.audioCodec,
-            bitrate: meta.bitrate,
-            frameRate: meta.frameRate,
+            duration: 0,
+            resolution: 'HD',
+            width: 1920,
+            height: 1080,
+            codec: ext.replace('.', '').toLowerCase(),
+            audioCodec: 'aac',
+            bitrate: 0,
+            frameRate: 30,
             libraryFolderId: mobileFolder.id,
           },
         });
-
-        // Generate thumbnail
-        try {
-          const thumbName = await ffmpegService.generateThumbnail(media.id, targetFilePath, media.duration);
-          await prisma.media.update({
-            where: { id: media.id },
-            data: { thumbnailPath: thumbName },
-          });
-        } catch (thumbErr: any) {
-          logger.warn('server', `Could not generate thumbnail for upload ${media.id}: ${thumbErr.message}`);
-        }
 
         const formatted = {
           id: media.id,
@@ -126,10 +109,41 @@ export const uploadMedia = async (req: Request, res: Response) => {
           updatedAt: media.updatedAt.toISOString(),
         };
 
+        // Respond immediately to client!
         res.status(201).json(formatted);
+
+        // Run metadata extraction & thumbnail generation in non-blocking background
+        setImmediate(async () => {
+          try {
+            const meta = await ffmpegService.probeMetadata(targetFilePath);
+            let thumbName: string | null = null;
+            try {
+              thumbName = await ffmpegService.generateThumbnail(media.id, targetFilePath, meta.duration || 0);
+            } catch {}
+
+            await prisma.media.update({
+              where: { id: media.id },
+              data: {
+                duration: meta.duration || 0,
+                resolution: meta.resolution || 'HD',
+                width: meta.width || 1920,
+                height: meta.height || 1080,
+                codec: meta.codec || ext.replace('.', '').toLowerCase(),
+                audioCodec: meta.audioCodec || 'aac',
+                bitrate: meta.bitrate || 0,
+                frameRate: meta.frameRate || 30,
+                thumbnailPath: thumbName,
+              },
+            });
+          } catch (bgErr: any) {
+            logger.warn('server', `Background metadata probe for ${media.id}: ${bgErr.message}`);
+          }
+        });
       } catch (procErr: any) {
         logger.error('server', `Failed to process uploaded video: ${procErr.message}`);
-        res.status(500).json({ error: 'Failed to process uploaded video' });
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Failed to process uploaded video' });
+        }
       }
     });
   } catch (err: any) {
@@ -336,6 +350,44 @@ export const updateProgress = async (req: Request, res: Response) => {
 
     res.json(progress);
   } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const deleteMedia = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { deleteFile } = req.query;
+
+    const media = await prisma.media.findUnique({ where: { id } });
+    if (!media) {
+      return res.status(404).json({ error: 'Media not found' });
+    }
+
+    // Delete thumbnail if exists
+    if (media.thumbnailPath) {
+      const thumbFile = path.join(THUMBNAILS_DIR, media.thumbnailPath);
+      try {
+        if (fs.existsSync(thumbFile)) fs.unlinkSync(thumbFile);
+      } catch {}
+    }
+
+    // Delete uploaded file if stored in uploads directory or requested
+    if (media.filePath && (deleteFile === 'true' || media.filePath.includes('/uploads/') || media.filePath.includes('\\uploads\\'))) {
+      try {
+        if (fs.existsSync(media.filePath)) fs.unlinkSync(media.filePath);
+      } catch {}
+    }
+
+    // Delete database records (playback progress, room references, and media)
+    await prisma.playbackProgress.deleteMany({ where: { mediaId: id } });
+    await prisma.room.deleteMany({ where: { mediaId: id } });
+    await prisma.media.delete({ where: { id } });
+
+    logger.info('server', `Deleted media ${media.title} (${id}) from library`);
+    res.json({ success: true, message: 'Media removed from library' });
+  } catch (err: any) {
+    logger.error('server', `Failed to delete media: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 };

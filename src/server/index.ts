@@ -49,6 +49,7 @@ app.get('/api/auth/me', authService.authenticate(), authController.getCurrentUse
 app.get('/api/media', authService.authenticate(), mediaController.getMediaList);
 app.post('/api/media/upload', mediaController.uploadMedia);
 app.get('/api/media/:id', authService.authenticate(), mediaController.getMediaById);
+app.delete('/api/media/:id', authService.authenticate(), mediaController.deleteMedia);
 app.patch('/api/media/:id/favorite', authService.authenticate(), mediaController.toggleFavorite);
 app.get('/api/media/:id/stream', mediaController.streamMedia);
 app.get('/api/media/:id/transcode', mediaController.transcodeMedia);

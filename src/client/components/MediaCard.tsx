@@ -11,7 +11,9 @@ import {
   Radio,
   Smartphone,
   Users,
-  Sparkles
+  Sparkles,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { MediaItem } from '../../shared/types';
 import { api } from '../api/apiClient';
@@ -21,12 +23,15 @@ import { QRCodeModal } from './QRCodeModal';
 export const MediaCard: React.FC<{
   media: MediaItem;
   onFavoriteChange?: (id: string, isFav: boolean) => void;
+  onDelete?: (id: string) => void;
   layout?: 'grid' | 'list';
-}> = ({ media, onFavoriteChange, layout = 'grid' }) => {
+}> = ({ media, onFavoriteChange, onDelete, layout = 'grid' }) => {
   const navigate = useNavigate();
   const { sendCommandToHost, isConnected } = useSocket();
   const [favorite, setFavorite] = useState(media.favorite);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const formatDuration = (seconds: number) => {

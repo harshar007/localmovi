@@ -38,6 +38,7 @@ export const MobileVideoShareModal: React.FC<VideoUploadModalProps> = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(initialFile || null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadPercent, setUploadPercent] = useState(0);
+  const [uploadSpeed, setUploadSpeed] = useState<number>(0);
   const [transferredBytes, setTransferredBytes] = useState<number>(0);
   const [totalBytes, setTotalBytes] = useState<number>(0);
   const [uploadedMedia, setUploadedMedia] = useState<MediaItem | null>(null);
@@ -82,15 +83,17 @@ export const MobileVideoShareModal: React.FC<VideoUploadModalProps> = ({
   const startUpload = async (file: File) => {
     setIsUploading(true);
     setUploadPercent(0);
+    setUploadSpeed(0);
     setTransferredBytes(0);
     setTotalBytes(file.size || 0);
     setErrorMessage(null);
 
     try {
-      const media = await api.uploadMedia(file, (percent, loaded, total) => {
+      const media = await api.uploadMedia(file, (percent, loaded, total, speed) => {
         setUploadPercent(percent);
         if (loaded !== undefined) setTransferredBytes(loaded);
         if (total !== undefined) setTotalBytes(total);
+        if (speed !== undefined) setUploadSpeed(speed);
       });
 
       setUploadedMedia(media);
@@ -101,6 +104,33 @@ export const MobileVideoShareModal: React.FC<VideoUploadModalProps> = ({
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleInstantLocalPlay = () => {
+    if (!selectedFile) return;
+    const blobUrl = URL.createObjectURL(selectedFile);
+    // Create a temporary video playback view or open in new tab
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>${selectedFile.name} - Instant Direct Play</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              body { margin: 0; background: #000; display: flex; align-items: center; justify-content: center; height: 100vh; color: #fff; font-family: sans-serif; }
+              video { width: 100%; height: 100%; max-height: 100vh; outline: none; }
+            </style>
+          </head>
+          <body>
+            <video src="${blobUrl}" controls autoplay playsinline></video>
+          </body>
+        </html>
+      `);
+      win.document.close();
+    }
+    onClose();
   };
 
   const handleHostParty = async () => {
@@ -285,11 +315,27 @@ export const MobileVideoShareModal: React.FC<VideoUploadModalProps> = ({
               <div className="flex items-center justify-between text-xs font-mono">
                 <span className="text-[#A0A0A0]">
                   {formatFileSize(transferredBytes)} / {formatFileSize(totalBytes)}
+                  {uploadSpeed > 0 && (
+                    <span className="ml-2 text-emerald-400 font-bold">
+                      ⚡ {uploadSpeed} MB/s
+                    </span>
+                  )}
                 </span>
                 <span className="font-bold text-[#A8C7FA] text-sm">
                   {uploadPercent}%
                 </span>
               </div>
+            </div>
+
+            {/* Instant Zero-Wait Playback Option */}
+            <div className="pt-2 border-t border-[#3C4043]/40">
+              <button
+                onClick={handleInstantLocalPlay}
+                className="px-4 py-2 rounded-full bg-[#1E1F20] hover:bg-[#303134] text-[#C2E7FF] text-xs font-bold border border-[#A8C7FA]/40 flex items-center justify-center gap-1.5 mx-auto transition-colors active:scale-95"
+              >
+                <Play className="w-3.5 h-3.5 fill-current text-[#A8C7FA]" />
+                <span>⚡ Don't want to wait? Play Immediately on this screen (0s)</span>
+              </button>
             </div>
           </div>
         )}

@@ -62,28 +62,42 @@ export const api = {
   },
   getMediaById: (id: string, deviceId?: string) =>
     request<MediaItem>(`/media/${id}${deviceId ? `?deviceId=${deviceId}` : ''}`),
+  deleteMedia: (id: string, deleteFile = true) =>
+    request<{ success: boolean; message: string }>(`/media/${id}?deleteFile=${deleteFile}`, { method: 'DELETE' }),
   toggleFavorite: (id: string) =>
     request<{ id: string; favorite: boolean }>(`/media/${id}/favorite`, { method: 'PATCH' }),
   updateProgress: (id: string, data: { deviceId: string; position: number; duration: number; completed?: boolean }) =>
     request(`/media/${id}/progress`, { method: 'POST', body: JSON.stringify(data) }),
-  uploadMedia: (file: File, onProgress?: (percent: number, loadedBytes?: number, totalBytes?: number) => void): Promise<MediaItem> => {
+  uploadMedia: (file: File, onProgress?: (percent: number, loadedBytes?: number, totalBytes?: number, speedMBps?: number) => void): Promise<MediaItem> => {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `${API_BASE}/media/upload`, true);
       xhr.timeout = 0; // No client timeout for large movies
       xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-      xhr.setRequestHeader('x-filename', encodeURIComponent(file.name || 'mobile_video.mp4'));
+      xhr.setRequestHeader('x-filename', encodeURIComponent(file.name || 'video.mp4'));
 
       const token = getAuthToken();
       if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       }
 
+      let lastTime = Date.now();
+      let lastLoaded = 0;
+
       if (xhr.upload && onProgress) {
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable && e.total > 0) {
+            const now = Date.now();
+            const timeDiff = (now - lastTime) / 1000;
+            let speedMBps = 0;
+            if (timeDiff >= 0.3) {
+              const bytesDiff = e.loaded - lastLoaded;
+              speedMBps = Number((bytesDiff / (1024 * 1024) / timeDiff).toFixed(1));
+              lastTime = now;
+              lastLoaded = e.loaded;
+            }
             const percent = Math.min(99, Math.round((e.loaded / e.total) * 100));
-            onProgress(percent, e.loaded, e.total);
+            onProgress(percent, e.loaded, e.total, speedMBps);
           }
         };
       }
