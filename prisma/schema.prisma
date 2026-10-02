@@ -1,0 +1,127 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Media {
+  id              String            @id @default(uuid())
+  title           String
+  filePath        String            @unique
+  fileSize        Float             // Bytes as float for SQLite compatibility
+  duration        Float             @default(0)
+  resolution      String            @default("Unknown")
+  width           Int?
+  height          Int?
+  codec           String            @default("unknown")
+  audioCodec      String?           @default("unknown")
+  bitrate         Int?              @default(0)
+  frameRate       Float?            @default(0)
+  thumbnailPath   String?
+  libraryFolderId String?
+  folder          LibraryFolder?    @relation(fields: [libraryFolderId], references: [id], onDelete: SetNull)
+  favorite        Boolean           @default(false)
+  playbackProgress PlaybackProgress[]
+  sessions        PlaybackSession[]
+  rooms           Room[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([title])
+  @@index([libraryFolderId])
+  @@index([createdAt])
+}
+
+model LibraryFolder {
+  id            String    @id @default(uuid())
+  folderPath    String    @unique
+  name          String?
+  enabled       Boolean   @default(true)
+  lastScannedAt DateTime?
+  media         Media[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model PlaybackProgress {
+  id        String   @id @default(uuid())
+  mediaId   String
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  deviceId  String
+  position  Float    @default(0)
+  duration  Float    @default(0)
+  completed Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@unique([mediaId, deviceId])
+  @@index([deviceId])
+}
+
+model Device {
+  id          String   @id @default(uuid())
+  name        String
+  deviceType  String   @default("browser") // browser, mobile, host, tablet
+  ipAddress   String?
+  userAgent   String?
+  isHost      Boolean  @default(false)
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model PlaybackSession {
+  id                 String   @id @default(uuid())
+  target             String   @default("HOST_PC") // "HOST_PC" or "DEVICE"
+  mediaId            String?
+  media              Media?   @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  state              String   @default("stopped") // "playing", "paused", "stopped", "buffering"
+  position           Float    @default(0)
+  duration           Float    @default(0)
+  volume             Float    @default(1.0)
+  playbackRate       Float    @default(1.0)
+  controllerDeviceId String?
+  updatedAt          DateTime @updatedAt
+}
+
+model Room {
+  id           String       @id @default(uuid())
+  code         String       @unique
+  name         String
+  mediaId      String?
+  media        Media?       @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  state        String       @default("paused") // "playing", "paused"
+  position     Float        @default(0)
+  controllerId String?
+  members      RoomMember[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model RoomMember {
+  id         String   @id @default(uuid())
+  roomId     String
+  room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  deviceId   String
+  deviceName String
+  joinedAt   DateTime @default(now())
+  lastPingAt DateTime @default(now())
+
+  @@unique([roomId, deviceId])
+}
+
+model Settings {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  role         String   @default("admin") // "admin" or "viewer"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

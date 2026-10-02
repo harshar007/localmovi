@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  localstream:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: localstream
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST_LAN_IP=192.168.1.37
+      - JWT_SECRET=localstream-production-secret-key-2026
+      - LOCALSTREAM_DATA_DIR=/app/data
+      - DATABASE_URL=file:/app/data/database/localstream.db
+    volumes:
+      # Persistent application data (Database, cached thumbnails, server logs)
+      - ./data:/app/data
+
+      # Host video directories mounted into container
+      - ./media:/media/local:ro
+      - "C:/Users/ajaysaagar developer/Videos:/media/videos:ro"
+      - "D:/:/media/d_drive:ro"
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/auth/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
