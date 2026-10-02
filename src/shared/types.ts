@@ -197,6 +197,7 @@ export const SOCKET_EVENTS = {
   ROOM_SYNC_COMMAND: 'room:sync_command',
   ROOM_STATE_UPDATED: 'room:state_updated',
   ROOM_MEMBERS_UPDATED: 'room:members_updated',
+  ROOM_DELETED: 'room:deleted',
   PARTY_INVITE: 'party:invite',
 
   // Library Scanner events

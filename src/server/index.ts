@@ -67,6 +67,7 @@ app.get('/api/rooms', authService.authenticate(), roomController.listRooms);
 app.post('/api/rooms', authService.authenticate(), roomController.createRoom);
 app.get('/api/rooms/:id', authService.authenticate(), roomController.getRoom);
 app.post('/api/rooms/:id/sync', authService.authenticate(), roomController.syncRoomPlayback);
+app.delete('/api/rooms/:id', authService.authenticate(), roomController.deleteRoom);
 
 // System & Admin Routes
 app.get('/api/system/stats', systemController.getStats);

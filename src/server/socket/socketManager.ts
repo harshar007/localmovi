@@ -40,6 +40,13 @@ export class SocketManager {
     // Forward synchronized room state changes to room channel
     roomService.setBroadcastCallback((roomId: string, room) => {
       this.io.to(`room:${roomId}`).emit(SOCKET_EVENTS.ROOM_STATE_UPDATED, room);
+      this.io.emit(SOCKET_EVENTS.ROOM_STATE_UPDATED, room);
+    });
+
+    // Forward room deletion event to all participants
+    roomService.setDeleteCallback((roomId: string) => {
+      this.io.to(`room:${roomId}`).emit(SOCKET_EVENTS.ROOM_DELETED, { roomId });
+      this.io.emit(SOCKET_EVENTS.ROOM_STATE_UPDATED);
     });
 
     // Forward library scan progress events

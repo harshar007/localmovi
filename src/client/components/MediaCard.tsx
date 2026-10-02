@@ -7,11 +7,11 @@ import {
   QrCode, 
   Clock, 
   Film, 
-  Layers, 
   Check, 
   Radio,
   Smartphone,
-  Users
+  Users,
+  Sparkles
 } from 'lucide-react';
 import { MediaItem } from '../../shared/types';
 import { api } from '../api/apiClient';
@@ -35,6 +35,17 @@ export const MediaCard: React.FC<{
     const mins = Math.floor((seconds % 3600) / 60);
     if (hrs > 0) return `${hrs}h ${mins}m`;
     return `${mins}m`;
+  };
+
+  const formatRemaining = (totalSec: number, posSec: number) => {
+    const remain = Math.max(0, totalSec - posSec);
+    const mins = Math.ceil(remain / 60);
+    if (mins >= 60) {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return `${h}h ${m}m left`;
+    }
+    return `${mins}m left`;
   };
 
   const formatResolution = (res: string) => {
@@ -68,12 +79,20 @@ export const MediaCard: React.FC<{
         mediaId: media.id,
         position: media.progress?.position || 0,
       });
-      setToastMessage('Sent to Host PC');
-      setTimeout(() => setToastMessage(null), 2500);
+      setToastMessage('Casting to PC...');
+      // Automatically navigate to remote on mobile / device
+      setTimeout(() => {
+        navigate('/remote');
+      }, 600);
     } catch {
       setToastMessage('Could not connect to Host');
       setTimeout(() => setToastMessage(null), 2500);
     }
+  };
+
+  const handleWatchHere = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate(`/watch/${media.id}`);
   };
 
   const handleCardClick = () => {
@@ -91,8 +110,6 @@ export const MediaCard: React.FC<{
 
   const resBadge = formatResolution(media.resolution);
 
-  // Direct video URL for phone scanning
-  // Replace localhost with network IP if currently on localhost
   const hostOrigin = window.location.origin.includes('localhost')
     ? window.location.origin.replace('localhost', '192.168.1.37')
     : window.location.origin;
@@ -103,10 +120,10 @@ export const MediaCard: React.FC<{
       <>
         <div
           onClick={handleCardClick}
-          className="group flex items-center gap-4 p-3 rounded-2xl glass-card hover:bg-card-hover border border-border/40 hover:border-primary/40 cursor-pointer transition-all relative"
+          className="group flex items-center gap-4 p-3 rounded-2xl bg-[#1E1F20] hover:bg-[#303134] border border-[#3C4043]/40 hover:border-[#A8C7FA]/50 cursor-pointer transition-all relative"
         >
           {/* Poster thumbnail */}
-          <div className="relative w-36 h-20 rounded-xl overflow-hidden bg-secondary/80 shrink-0">
+          <div className="relative w-36 h-20 rounded-xl overflow-hidden bg-[#28292A] shrink-0">
             {media.thumbnailPath ? (
               <img
                 src={media.thumbnailPath}
@@ -115,7 +132,7 @@ export const MediaCard: React.FC<{
                 loading="lazy"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-600">
+              <div className="w-full h-full flex items-center justify-center text-[#A0A0A0]">
                 <Film className="w-8 h-8 opacity-40" />
               </div>
             )}
@@ -129,29 +146,26 @@ export const MediaCard: React.FC<{
 
             {/* Progress bar */}
             {progressPercent > 0 && (
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-800">
-                <div className="h-full bg-accent" style={{ width: `${progressPercent}%` }} />
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/60">
+                <div className="h-full bg-[#A8C7FA]" style={{ width: `${progressPercent}%` }} />
               </div>
             )}
           </div>
 
           {/* Title & Metadata */}
           <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-slate-100 group-hover:text-primary-light transition-colors truncate text-sm sm:text-base">
+            <h4 className="font-semibold text-[#E3E3E3] group-hover:text-white transition-colors truncate text-sm sm:text-base">
               {media.title}
             </h4>
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs text-slate-400">
+            <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-[#A0A0A0]">
               {resBadge && (
-                <span className="px-1.5 py-0.5 rounded bg-primary/20 text-primary-light font-bold text-[10px] border border-primary/30">
+                <span className="px-1.5 py-0.5 rounded bg-[#004A77] text-[#C2E7FF] font-bold text-[10px]">
                   {resBadge}
                 </span>
               )}
-              <span className="uppercase font-mono text-[11px] text-slate-400">
-                {media.codec}
-              </span>
-              {media.folderName && (
-                <span className="text-slate-500 truncate max-w-[150px]">
-                  • {media.folderName}
+              {progressPercent > 0 && media.progress && (
+                <span className="text-[#A8C7FA] font-medium text-[11px]">
+                  {formatRemaining(media.progress.duration, media.progress.position)}
                 </span>
               )}
             </div>
@@ -160,35 +174,34 @@ export const MediaCard: React.FC<{
           {/* Actions */}
           <div className="flex items-center gap-2 pr-2" onClick={(e) => e.stopPropagation()}>
             <button
-              onClick={handleOpenQr}
-              className="p-2 rounded-xl bg-card hover:bg-emerald-500/20 text-slate-400 hover:text-emerald-400 border border-border transition-colors flex items-center gap-1 text-xs"
-              title="Scan QR to Play on Phone"
+              onClick={handleWatchHere}
+              className="px-3 py-1.5 rounded-full bg-[#004A77] hover:bg-[#0842A0] text-[#C2E7FF] text-xs font-semibold flex items-center gap-1"
             >
-              <QrCode className="w-4 h-4 text-emerald-400" />
-              <span className="hidden md:inline text-emerald-300 font-semibold">QR Play</span>
+              <Play className="w-3 h-3 fill-current" />
+              <span>Watch</span>
             </button>
 
             <button
               onClick={handlePlayOnHost}
-              className="p-2 rounded-xl bg-card hover:bg-primary/20 text-slate-400 hover:text-primary-light border border-border transition-colors hidden sm:flex items-center gap-1 text-xs"
-              title="Play on Host PC"
+              className="px-3 py-1.5 rounded-full bg-[#28292A] hover:bg-[#303134] text-[#E3E3E3] text-xs font-semibold flex items-center gap-1 border border-[#3C4043]/50"
+              title="Cast to Host PC"
             >
-              <Monitor className="w-4 h-4" />
-              <span className="hidden md:inline">Host PC</span>
+              <Monitor className="w-3.5 h-3.5 text-[#A8C7FA]" />
+              <span className="hidden md:inline">Play on PC</span>
             </button>
 
             <button
               onClick={handleFavoriteToggle}
-              className={`p-2 rounded-xl border border-border transition-colors ${
-                favorite ? 'text-accent bg-accent/10 border-accent/30' : 'text-slate-400 hover:text-white bg-card'
+              className={`p-2 rounded-full border border-[#3C4043]/50 transition-colors ${
+                favorite ? 'text-rose-400 bg-rose-500/20 border-rose-500/40' : 'text-[#A0A0A0] hover:text-white bg-[#28292A]'
               }`}
             >
-              <Heart className={`w-4 h-4 ${favorite ? 'fill-accent' : ''}`} />
+              <Heart className={`w-3.5 h-3.5 ${favorite ? 'fill-rose-400' : ''}`} />
             </button>
           </div>
         </div>
 
-        {/* QR Code Modal for this video */}
+        {/* QR Code Modal */}
         {showQrModal && (
           <QRCodeModal
             targetUrl={directWatchUrl}
@@ -204,74 +217,54 @@ export const MediaCard: React.FC<{
     <>
       <div
         onClick={handleCardClick}
-        className="group relative rounded-2xl glass-card hover:bg-card-hover border border-border/40 hover:border-primary/50 overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-glow-primary flex flex-col"
+        className="group relative rounded-2xl bg-[#1E1F20] hover:bg-[#28292A] border border-[#3C4043]/40 hover:border-[#A8C7FA]/40 overflow-hidden cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevation-2 flex flex-col"
       >
-        {/* Thumbnail Container */}
-        <div className="relative aspect-video w-full bg-secondary/80 overflow-hidden">
+        {/* Thumbnail Container (16:9) */}
+        <div className="relative aspect-video w-full bg-[#28292A] overflow-hidden">
           {media.thumbnailPath ? (
             <img
               src={media.thumbnailPath}
               alt={media.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               loading="lazy"
             />
           ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center text-slate-600 bg-secondary/40">
+            <div className="w-full h-full flex flex-col items-center justify-center text-[#A0A0A0] bg-[#28292A]">
               <Film className="w-10 h-10 opacity-30 mb-1" />
-              <span className="text-[11px] text-slate-500">Video</span>
+              <span className="text-[11px] text-[#A0A0A0]">Movie</span>
             </div>
           )}
 
-          {/* Overlay Hover Actions */}
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2.5 p-4">
+          {/* Hover Overlay with Primary Dual Actions */}
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-3">
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(`/watch/${media.id}`);
-              }}
-              className="w-11 h-11 rounded-full bg-primary hover:bg-primary-hover text-white flex items-center justify-center shadow-glow-primary transition-transform hover:scale-110"
-              title="Play on this device"
+              onClick={handleWatchHere}
+              className="w-full py-2 rounded-full bg-[#A8C7FA] hover:bg-[#C2E7FF] text-[#062E6F] text-xs font-bold flex items-center justify-center gap-1.5 transition-transform hover:scale-102 shadow-sm"
+              title="Watch directly on this device"
             >
-              <Play className="w-5 h-5 fill-white ml-0.5" />
-            </button>
-
-            <button
-              onClick={handleOpenQr}
-              className="w-11 h-11 rounded-full bg-emerald-500/90 hover:bg-emerald-500 text-white flex items-center justify-center shadow-lg transition-transform hover:scale-110"
-              title="Scan QR to Play directly on Phone (No Login)"
-            >
-              <QrCode className="w-5 h-5" />
-            </button>
-
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(`/rooms?join=&createMedia=${media.id}`);
-              }}
-              className="w-11 h-11 rounded-full bg-gradient-to-tr from-accent to-primary hover:from-accent-hover hover:to-primary text-white flex items-center justify-center shadow-lg transition-transform hover:scale-110"
-              title="Host Join Party for this movie"
-            >
-              <Users className="w-5 h-5" />
+              <Play className="w-3.5 h-3.5 fill-current" />
+              <span>WATCH HERE</span>
             </button>
 
             <button
               onClick={handlePlayOnHost}
-              className="w-11 h-11 rounded-full bg-card/90 hover:bg-primary text-slate-200 hover:text-white flex items-center justify-center border border-white/20 transition-transform hover:scale-110"
-              title="Stream / Play on Host PC"
+              className="w-full py-2 rounded-full bg-[#004A77] hover:bg-[#0842A0] text-[#C2E7FF] text-xs font-semibold flex items-center justify-center gap-1.5 transition-transform hover:scale-102"
+              title="Cast to Host Screen and open Remote Control"
             >
-              <Monitor className="w-4 h-4" />
+              <Monitor className="w-3.5 h-3.5" />
+              <span>PLAY ON PC</span>
             </button>
           </div>
 
           {/* Top Badges */}
           <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none">
             {resBadge ? (
-              <span className="px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-xs text-primary-light font-bold text-[10px] border border-primary/30 uppercase tracking-wider">
+              <span className="px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-xs text-[#C2E7FF] font-bold text-[10px] uppercase font-mono">
                 {resBadge}
               </span>
             ) : <span />}
 
-            <div className="flex items-center gap-1.5 pointer-events-auto">
+            <div className="flex items-center gap-1 pointer-events-auto">
               <button
                 onClick={handleOpenQr}
                 className="p-1.5 rounded-full bg-black/60 hover:bg-emerald-500/80 text-slate-300 hover:text-white backdrop-blur-xs transition-colors"
@@ -282,10 +275,10 @@ export const MediaCard: React.FC<{
               <button
                 onClick={handleFavoriteToggle}
                 className={`p-1.5 rounded-full backdrop-blur-xs transition-colors ${
-                  favorite ? 'bg-accent/20 text-accent border border-accent/40' : 'bg-black/60 text-slate-300 hover:text-white'
+                  favorite ? 'bg-rose-500/30 text-rose-400' : 'bg-black/60 text-slate-300 hover:text-white'
                 }`}
               >
-                <Heart className={`w-3.5 h-3.5 ${favorite ? 'fill-accent' : ''}`} />
+                <Heart className={`w-3.5 h-3.5 ${favorite ? 'fill-rose-400' : ''}`} />
               </button>
             </div>
           </div>
@@ -299,8 +292,8 @@ export const MediaCard: React.FC<{
 
           {/* Playback Progress Indicator */}
           {progressPercent > 0 && (
-            <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-slate-900/80">
-              <div className="h-full bg-accent transition-all" style={{ width: `${progressPercent}%` }} />
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/80">
+              <div className="h-full bg-[#A8C7FA] transition-all" style={{ width: `${progressPercent}%` }} />
             </div>
           )}
         </div>
@@ -308,18 +301,25 @@ export const MediaCard: React.FC<{
         {/* Card Info */}
         <div className="p-3.5 flex flex-col flex-1 justify-between gap-1.5">
           <div>
-            <h4 className="font-semibold text-sm text-slate-100 group-hover:text-primary-light transition-colors line-clamp-2 leading-snug">
+            <h4 className="font-semibold text-xs sm:text-sm text-[#E3E3E3] group-hover:text-white transition-colors line-clamp-1 leading-snug">
               {media.title}
             </h4>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-border/30">
-            <span className="uppercase font-mono font-semibold text-slate-400">
-              {media.codec}
-            </span>
+          <div className="flex items-center justify-between text-[11px] text-[#A0A0A0] pt-1 border-t border-[#3C4043]/30">
+            {progressPercent > 0 && media.progress ? (
+              <span className="text-[#A8C7FA] font-medium">
+                {formatRemaining(media.progress.duration, media.progress.position)}
+              </span>
+            ) : (
+              <span className="uppercase font-mono text-[10px] text-[#A0A0A0]">
+                {media.codec}
+              </span>
+            )}
+            
             <button
               onClick={handleOpenQr}
-              className="text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 hover:underline"
+              className="text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 text-[10px]"
             >
               <Smartphone className="w-3 h-3" />
               <span>Scan to Play</span>

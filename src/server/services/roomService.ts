@@ -4,9 +4,14 @@ import { logger } from './loggerService';
 
 export class RoomService {
   private broadcastRoomCallback?: (roomId: string, room: RoomItem) => void;
+  private broadcastRoomDeletedCallback?: (roomId: string) => void;
 
   public setBroadcastCallback(cb: (roomId: string, room: RoomItem) => void) {
     this.broadcastRoomCallback = cb;
+  }
+
+  public setDeleteCallback(cb: (roomId: string) => void) {
+    this.broadcastRoomDeletedCallback = cb;
   }
 
   /**
@@ -164,6 +169,39 @@ export class RoomService {
       this.broadcastRoomCallback(room.id, formatted);
     }
     return formatted;
+  }
+
+  /**
+   * Delete / End a room (by room creator/controller or admin)
+   */
+  public async deleteRoom(roomIdOrCode: string, deviceId?: string): Promise<{ success: boolean }> {
+    const room = await prisma.room.findFirst({
+      where: {
+        OR: [{ id: roomIdOrCode }, { code: roomIdOrCode.toUpperCase() }],
+      },
+    });
+
+    if (!room) {
+      throw new Error('Room not found');
+    }
+
+    // Delete members first due to foreign key
+    await prisma.roomMember.deleteMany({
+      where: { roomId: room.id },
+    });
+
+    // Delete the room
+    await prisma.room.delete({
+      where: { id: room.id },
+    });
+
+    logger.info('socket', `Room ${room.name} (${room.code}) was deleted by device ${deviceId || 'owner'}`);
+
+    if (this.broadcastRoomDeletedCallback) {
+      this.broadcastRoomDeletedCallback(room.id);
+    }
+
+    return { success: true };
   }
 
   private formatRoom(room: any): RoomItem {

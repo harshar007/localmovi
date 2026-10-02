@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Tv, 
   FolderPlus, 
-  ShieldCheck, 
   Radio, 
   Play, 
   Check, 
@@ -10,27 +9,36 @@ import {
   Trash2, 
   HardDrive, 
   ChevronRight,
-  Sparkles
+  Sparkles,
+  QrCode,
+  Copy,
+  Smartphone,
+  RefreshCw
 } from 'lucide-react';
 import { api } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 
 export const SetupWizard: React.FC<{ onCompleted: () => void }> = ({ onCompleted }) => {
   const { login, refreshStatus } = useAuth();
+  const { scanProgress, isConnected } = useSocket();
 
-  const [step, setStep] = useState(1);
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [selectedFolders, setSelectedFolders] = useState<string[]>([]);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [selectedFolders, setSelectedFolders] = useState<string[]>([
+    '/media/videos' // default docker container mapped videos folder
+  ]);
   const [customFolderPath, setCustomFolderPath] = useState('');
-  const [port, setPort] = useState('3000');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [lanInfo, setLanInfo] = useState<{ lanUrl: string; qrCode: string }>({ lanUrl: '', qrCode: '' });
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [totalVideosFound, setTotalVideosFound] = useState(0);
 
   const isElectron = !!(window as any).electronAPI?.isElectron;
 
-  // Select folder via native Windows dialog if Electron
+  useEffect(() => {
+    api.getQrCode().then(setLanInfo).catch(() => {});
+  }, []);
+
   const handleSelectNativeFolder = async () => {
     if (isElectron && (window as any).electronAPI?.selectFolder) {
       try {
@@ -55,31 +63,16 @@ export const SetupWizard: React.FC<{ onCompleted: () => void }> = ({ onCompleted
     setSelectedFolders(selectedFolders.filter((f) => f !== folder));
   };
 
-  const handleStep1Submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!username.trim()) {
-      setErrorMessage('Please enter a username');
-      return;
-    }
-    if (password.length < 4) {
-      setErrorMessage('Password must be at least 4 characters');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setErrorMessage('Passwords do not match');
-      return;
-    }
-    setErrorMessage(null);
-    setStep(2);
-  };
+  const handleStartScanning = async () => {
+    setStep(3);
+    setIsScanning(true);
 
-  const handleFinishSetup = async () => {
-    setIsSubmitting(true);
-    setErrorMessage(null);
     try {
-      // 1. Create Admin
-      const authRes = await api.setupAdmin({ username, password });
-      login(authRes.token, authRes.user);
+      // 1. Setup default open admin
+      try {
+        const authRes = await api.setupAdmin({ username: 'admin', password: 'password123' });
+        login(authRes.token, authRes.user);
+      } catch {}
 
       // 2. Add Selected Folders
       for (const folderPath of selectedFolders) {
@@ -88,261 +81,264 @@ export const SetupWizard: React.FC<{ onCompleted: () => void }> = ({ onCompleted
         } catch {}
       }
 
-      // 3. Save Port Setting
-      if (port && port !== '3000') {
-        await api.updateSettings({ port });
-      }
-
-      // 4. Refresh status & trigger scan
+      // 3. Scan library
       await api.scanAllFolders().catch(() => {});
-      await refreshStatus();
-      onCompleted();
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Setup failed');
-    } finally {
-      setIsSubmitting(false);
+      
+      // Check total items
+      const media = await api.getMedia().catch(() => []);
+      setTotalVideosFound(media.length);
+
+      // Short delay for visual polish
+      setTimeout(() => {
+        setIsScanning(false);
+        setStep(4);
+      }, 2000);
+    } catch (err) {
+      setIsScanning(false);
+      setStep(4);
+    }
+  };
+
+  const handleFinish = async () => {
+    await refreshStatus();
+    onCompleted();
+  };
+
+  const handleCopyLink = () => {
+    if (lanInfo.lanUrl) {
+      navigator.clipboard.writeText(lanInfo.lanUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background selection:bg-primary selection:text-white">
-      <div className="w-full max-w-xl glass-panel rounded-3xl p-8 border border-border/60 shadow-2xl space-y-8 animate-fade-in relative overflow-hidden">
-        {/* Glow Header */}
-        <div className="flex flex-col items-center text-center space-y-2">
-          <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center shadow-glow-primary mb-1">
-            <Tv className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">
-            Welcome to LocalStream
-          </h1>
-          <p className="text-xs text-slate-400 max-w-sm">
-            Self-hosted private LAN video streaming and host PC remote control.
-          </p>
-        </div>
-
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[#131314] text-[#E3E3E3] selection:bg-[#A8C7FA]/30 selection:text-white">
+      <div className="w-full max-w-xl bg-[#1E1F20] rounded-3xl p-8 border border-[#3C4043]/60 shadow-2xl space-y-8 animate-fade-in relative overflow-hidden">
+        
         {/* Step Indicator */}
-        <div className="flex items-center justify-between px-4">
-          {[1, 2, 3].map((s) => (
-            <div key={s} className="flex items-center gap-2">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                  step === s
-                    ? 'bg-primary text-white shadow-glow-primary'
-                    : step > s
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-secondary text-slate-400'
-                }`}
-              >
-                {step > s ? <Check className="w-4 h-4" /> : s}
-              </div>
-              <span className={`text-xs font-medium hidden sm:inline ${step === s ? 'text-white' : 'text-slate-500'}`}>
-                {s === 1 ? 'Admin' : s === 2 ? 'Media Folders' : 'Finalize'}
-              </span>
+        <div className="flex items-center justify-between border-b border-[#3C4043]/40 pb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl bg-[#A8C7FA] text-[#062E6F] flex items-center justify-center font-black">
+              <Tv className="w-5 h-5 stroke-[2.5]" />
             </div>
-          ))}
+            <div>
+              <span className="text-base font-bold text-white tracking-tight">LocalMovi</span>
+              <span className="text-xs text-[#A0A0A0] block">Appliance Setup</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {[1, 2, 3, 4].map((i) => (
+              <span
+                key={i}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  step === i ? 'w-6 bg-[#A8C7FA]' : step > i ? 'w-3 bg-emerald-400' : 'w-2 bg-[#3C4043]'
+                }`}
+              />
+            ))}
+          </div>
         </div>
 
-        {/* Error message */}
-        {errorMessage && (
-          <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300">
-            {errorMessage}
-          </div>
-        )}
-
-        {/* Step 1: Admin Account Creation */}
+        {/* STEP 1: Welcome */}
         {step === 1 && (
-          <form onSubmit={handleStep1Submit} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Admin Username</label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                className="w-full px-4 py-2.5 rounded-xl bg-secondary/80 border border-border focus:border-primary text-sm text-white focus:outline-none"
-                placeholder="admin"
-              />
+          <div className="space-y-6 text-center py-4">
+            <div className="w-16 h-16 rounded-3xl bg-[#28292A] border border-[#3C4043] flex items-center justify-center mx-auto text-[#A8C7FA]">
+              <Sparkles className="w-8 h-8" />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Admin Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full px-4 py-2.5 rounded-xl bg-secondary/80 border border-border focus:border-primary text-sm text-white focus:outline-none"
-                placeholder="••••••••"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Confirm Password</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                className="w-full px-4 py-2.5 rounded-xl bg-secondary/80 border border-border focus:border-primary text-sm text-white focus:outline-none"
-                placeholder="••••••••"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold text-sm shadow-glow-primary transition-all flex items-center justify-center gap-2 mt-4"
-            >
-              <span>Next: Media Folders</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </form>
-        )}
-
-        {/* Step 2: Add Video Directories */}
-        {step === 2 && (
-          <div className="space-y-4">
-            <div className="space-y-1 text-center">
-              <h3 className="text-sm font-bold text-white">Select Video Folders</h3>
-              <p className="text-xs text-slate-400">
-                Choose folders on your computer containing movies, series, or video files.
+            <div className="space-y-2 max-w-md mx-auto">
+              <h2 className="text-2xl font-bold text-white tracking-tight">
+                Welcome to LocalMovi
+              </h2>
+              <p className="text-sm text-[#A0A0A0] leading-relaxed">
+                Your personal video library that works privately on your local network. No complex configuration, no cloud dependency.
               </p>
             </div>
 
-            {/* Native Folder Picker if Electron */}
-            {isElectron && (
+            <div className="pt-4">
               <button
-                type="button"
-                onClick={handleSelectNativeFolder}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-primary/20 to-accent/20 hover:from-primary/30 hover:to-accent/30 border border-primary/40 text-primary-light font-semibold text-sm flex items-center justify-center gap-2 transition-all"
+                onClick={() => setStep(2)}
+                className="m3-btn-primary w-full max-w-xs mx-auto py-3 text-sm font-semibold shadow-md"
               >
-                <FolderPlus className="w-4 h-4" />
-                <span>Browse Windows Directory</span>
-              </button>
-            )}
-
-            {/* Manual Path Input */}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="e.g. D:\Movies or C:\Users\Videos"
-                value={customFolderPath}
-                onChange={(e) => setCustomFolderPath(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddCustomFolder()}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-secondary/80 border border-border focus:border-primary text-xs font-mono text-white focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleAddCustomFolder}
-                className="px-4 py-2.5 rounded-xl bg-secondary hover:bg-card border border-border text-xs font-semibold text-white transition-colors"
-              >
-                Add
-              </button>
-            </div>
-
-            {/* Selected Folders List */}
-            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-              {selectedFolders.length === 0 ? (
-                <div className="p-4 rounded-xl border border-dashed border-border text-center text-xs text-slate-500">
-                  No folders selected yet. You can also add folders later in the dashboard.
-                </div>
-              ) : (
-                selectedFolders.map((f) => (
-                  <div
-                    key={f}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-card border border-border text-xs"
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <Folder className="w-4 h-4 text-primary-light shrink-0" />
-                      <span className="font-mono text-slate-200 truncate">{f}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveFolder(f)}
-                      className="p-1 text-slate-400 hover:text-rose-400 transition-colors shrink-0"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="w-1/3 py-2.5 rounded-xl bg-secondary hover:bg-card text-slate-300 text-xs font-medium transition-colors"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                onClick={() => setStep(3)}
-                className="w-2/3 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-semibold shadow-glow-primary transition-all flex items-center justify-center gap-1.5"
-              >
-                <span>Continue</span>
+                <span>Get Started</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 3: Network & Launch */}
-        {step === 3 && (
-          <div className="space-y-4">
-            <div className="space-y-1 text-center">
-              <h3 className="text-sm font-bold text-white">Network & Port Configuration</h3>
-              <p className="text-xs text-slate-400">
-                Configure your server port and start indexing media files.
-              </p>
-            </div>
-
+        {/* STEP 2: Folder Selection */}
+        {step === 2 && (
+          <div className="space-y-6 animate-fade-in">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Server Port</label>
-              <input
-                type="number"
-                value={port}
-                onChange={(e) => setPort(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-secondary/80 border border-border focus:border-primary text-sm font-mono text-white focus:outline-none"
-              />
-            </div>
-
-            <div className="p-4 rounded-2xl glass-card border border-border/60 space-y-2 text-xs text-slate-300">
-              <div className="flex items-center gap-2 font-semibold text-white">
-                <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
-                LAN Streaming Enabled
-              </div>
-              <p className="text-slate-400">
-                Once initialized, LocalStream indexes your videos with zero cloud requirements. Devices on your Wi-Fi can stream and remote control immediately.
+              <h2 className="text-xl font-bold text-white">Select Video Folders</h2>
+              <p className="text-xs text-[#A0A0A0]">
+                Choose the folders on your computer where your movies and videos are stored.
               </p>
             </div>
 
-            <div className="flex gap-3 pt-2">
+            {/* Folder list */}
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {selectedFolders.map((folder) => (
+                <div
+                  key={folder}
+                  className="flex items-center justify-between p-3 rounded-2xl bg-[#28292A] border border-[#3C4043]/50 text-xs text-white"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Folder className="w-4 h-4 text-[#A8C7FA] shrink-0" />
+                    <span className="font-mono text-[11px] truncate">{folder}</span>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveFolder(folder)}
+                    className="p-1 rounded-lg text-[#A0A0A0] hover:text-rose-400 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Add folder controls */}
+            <div className="space-y-3 pt-2">
+              {isElectron && (
+                <button
+                  type="button"
+                  onClick={handleSelectNativeFolder}
+                  className="m3-btn-secondary w-full py-2.5"
+                >
+                  <FolderPlus className="w-4 h-4 text-[#A8C7FA]" />
+                  <span>Browse Windows Folder...</span>
+                </button>
+              )}
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="e.g. C:\Users\Videos or /media/videos"
+                  value={customFolderPath}
+                  onChange={(e) => setCustomFolderPath(e.target.value)}
+                  className="flex-1 px-4 py-2.5 rounded-2xl bg-[#28292A] border border-[#3C4043] focus:border-[#A8C7FA] text-xs text-white placeholder-[#A0A0A0] focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCustomFolder}
+                  disabled={!customFolderPath.trim()}
+                  className="px-4 py-2.5 rounded-2xl bg-[#004A77] hover:bg-[#0842A0] disabled:opacity-50 text-[#C2E7FF] text-xs font-semibold"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4 border-t border-[#3C4043]/40">
               <button
                 type="button"
-                onClick={() => setStep(2)}
-                className="w-1/3 py-3 rounded-xl bg-secondary hover:bg-card text-slate-300 text-xs font-medium transition-colors"
+                onClick={() => setStep(1)}
+                className="w-1/3 py-2.5 rounded-full bg-[#28292A] hover:bg-[#303134] text-xs text-[#E3E3E3]"
               >
                 Back
               </button>
               <button
                 type="button"
-                disabled={isSubmitting}
-                onClick={handleFinishSetup}
-                className="w-2/3 py-3 rounded-xl bg-gradient-to-r from-primary to-accent hover:from-primary-hover hover:to-accent text-white text-sm font-bold shadow-glow-primary transition-all flex items-center justify-center gap-2"
+                onClick={handleStartScanning}
+                disabled={selectedFolders.length === 0}
+                className="w-2/3 m3-btn-primary py-2.5 font-semibold"
               >
-                {isSubmitting ? (
-                  <span>Initializing...</span>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    <span>Launch LocalStream</span>
-                  </>
-                )}
+                <span>Scan & Prepare Library</span>
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
         )}
+
+        {/* STEP 3: Scanning Progress */}
+        {step === 3 && (
+          <div className="space-y-6 text-center py-6 animate-fade-in">
+            <div className="w-16 h-16 rounded-3xl bg-[#004A77] text-[#C2E7FF] flex items-center justify-center mx-auto animate-pulse">
+              <RefreshCw className="w-8 h-8 animate-spin" />
+            </div>
+
+            <div className="space-y-2 max-w-sm mx-auto">
+              <h2 className="text-xl font-bold text-white">Scanning your library...</h2>
+              <p className="text-xs text-[#A0A0A0]">
+                {scanProgress?.currentFile 
+                  ? `Processing: ${scanProgress.currentFile}` 
+                  : 'Indexing videos, extracting metadata, and generating thumbnails...'}
+              </p>
+            </div>
+
+            {/* Progress bar */}
+            <div className="space-y-1.5 max-w-md mx-auto">
+              <div className="w-full h-2.5 rounded-full bg-[#28292A] overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-[#A8C7FA] to-[#C2E7FF] transition-all duration-300 rounded-full"
+                  style={{ width: `${Math.max(15, scanProgress?.percent || 45)}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-[#A0A0A0] font-mono">
+                <span>{scanProgress?.processedCount || selectedFolders.length} items checked</span>
+                <span>{scanProgress?.percent || 50}%</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 4: Ready with QR Code */}
+        {step === 4 && (
+          <div className="space-y-6 text-center animate-fade-in">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/40">
+                <Check className="w-3.5 h-3.5" />
+                <span>LocalMovi is ready</span>
+              </div>
+              <h2 className="text-2xl font-bold text-white">Your Personal Cinema is Live</h2>
+              <p className="text-xs text-[#A0A0A0]">
+                Scan the QR code with your phone to start streaming immediately.
+              </p>
+            </div>
+
+            {/* Large QR Code Display */}
+            <div className="p-5 rounded-3xl bg-white w-52 h-52 mx-auto flex items-center justify-center shadow-xl">
+              {lanInfo.qrCode ? (
+                <img src={lanInfo.qrCode} alt="LocalMovi QR" className="w-full h-full object-contain" />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-slate-800">
+                  <QrCode className="w-16 h-16" />
+                  <span className="text-xs font-mono font-bold mt-2">192.168.1.37:3000</span>
+                </div>
+              )}
+            </div>
+
+            {/* Connection Link Card */}
+            <div className="p-3.5 rounded-2xl bg-[#28292A] border border-[#3C4043]/60 max-w-sm mx-auto flex items-center justify-between gap-2">
+              <div className="text-left min-w-0">
+                <span className="text-[10px] text-[#A0A0A0] uppercase tracking-wider font-bold block">Local Network URL</span>
+                <span className="text-xs text-[#A8C7FA] font-mono font-semibold truncate block">
+                  {lanInfo.lanUrl || 'http://192.168.1.37:3000'}
+                </span>
+              </div>
+              <button
+                onClick={handleCopyLink}
+                className="p-2 rounded-xl bg-[#1E1F20] hover:bg-[#303134] text-xs text-white border border-[#3C4043] flex items-center gap-1 transition-colors"
+              >
+                {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedLink ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={handleFinish}
+                className="m3-btn-primary w-full max-w-sm mx-auto py-3 text-sm font-bold shadow-glow-primary"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                <span>Start Watching Now</span>
+              </button>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

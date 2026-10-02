@@ -99,6 +99,11 @@ export const api = {
     request<RoomItem>('/rooms', { method: 'POST', body: JSON.stringify(data) }),
   syncRoom: (roomId: string, data: { deviceId: string; state?: string; position?: number; mediaId?: string }) =>
     request<RoomItem>(`/rooms/${roomId}/sync`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteRoom: (roomId: string, deviceId?: string) =>
+    request<{ success: boolean }>(`/rooms/${roomId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ deviceId }),
+    }),
 
   // System
   getStats: () => request<SystemStats>('/system/stats'),

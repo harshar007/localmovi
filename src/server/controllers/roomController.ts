@@ -50,3 +50,17 @@ export const syncRoomPlayback = async (req: Request, res: Response) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+export const deleteRoom = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { deviceId } = req.body;
+    const result = await roomService.deleteRoom(id, deviceId);
+    res.json(result);
+  } catch (err: any) {
+    logger.error('socket', `Error deleting room: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+

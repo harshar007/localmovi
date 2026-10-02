@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { 
   Users, 
   Plus, 
@@ -17,7 +17,8 @@ import {
   Share2,
   Radio,
   Send,
-  Cast
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { api } from '../api/apiClient';
 import { RoomItem, MediaItem, SOCKET_EVENTS } from '../../shared/types';
@@ -26,6 +27,7 @@ import { VideoPlayer } from '../components/VideoPlayer';
 import { QRCodeModal } from '../components/QRCodeModal';
 
 export const RoomsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { socket, deviceId, deviceName, sendPartyInvite } = useSocket();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -40,8 +42,10 @@ export const RoomsPage: React.FC = () => {
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [deliveredToast, setDeliveredToast] = useState(false);
+  const [endRoomConfirm, setEndRoomConfirm] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  const isController = activeRoom?.controllerId === deviceId;
+  const isOwner = activeRoom?.controllerId === deviceId;
 
   const loadRooms = async () => {
     try {
@@ -60,7 +64,7 @@ export const RoomsPage: React.FC = () => {
   const createMediaParam = searchParams.get('createMedia');
 
   useEffect(() => {
-    if (autoJoinCode && socket && !activeRoom) {
+    if (autoJoinCode && !activeRoom) {
       handleJoinRoom(autoJoinCode);
     }
   }, [autoJoinCode, socket]);
@@ -76,7 +80,7 @@ export const RoomsPage: React.FC = () => {
     }
   }, [createMediaParam, mediaList, deviceName]);
 
-  // Listen to live room updates from socket
+  // Listen to live room updates and room deletion from socket
   useEffect(() => {
     if (!socket) return;
 
@@ -87,9 +91,22 @@ export const RoomsPage: React.FC = () => {
       loadRooms();
     };
 
+    const handleRoomDeleted = (data: { roomId: string }) => {
+      if (activeRoom && activeRoom.id === data.roomId) {
+        setActiveRoom(null);
+        setSearchParams({});
+        setStatusMessage('The host has ended and deleted this Watch Party.');
+        setTimeout(() => setStatusMessage(null), 5000);
+      }
+      loadRooms();
+    };
+
     socket.on(SOCKET_EVENTS.ROOM_STATE_UPDATED, handleRoomUpdate);
+    socket.on(SOCKET_EVENTS.ROOM_DELETED, handleRoomDeleted);
+
     return () => {
       socket.off(SOCKET_EVENTS.ROOM_STATE_UPDATED, handleRoomUpdate);
+      socket.off(SOCKET_EVENTS.ROOM_DELETED, handleRoomDeleted);
     };
   }, [socket, activeRoom]);
 
@@ -104,6 +121,8 @@ export const RoomsPage: React.FC = () => {
         mediaId: selectedMediaId || undefined,
       });
 
+      setActiveRoom(room);
+
       if (socket) {
         socket.emit(SOCKET_EVENTS.ROOM_JOIN, {
           roomId: room.id,
@@ -112,7 +131,6 @@ export const RoomsPage: React.FC = () => {
         });
       }
 
-      setActiveRoom(room);
       setShowCreateModal(false);
       setRoomName('');
       loadRooms();
@@ -124,19 +142,23 @@ export const RoomsPage: React.FC = () => {
   const handleJoinRoom = async (roomIdOrCode: string) => {
     try {
       const room = await api.getRoom(roomIdOrCode);
-      if (room && socket) {
-        socket.emit(SOCKET_EVENTS.ROOM_JOIN, {
-          roomId: room.id,
-          deviceId,
-          deviceName,
-        }, (res: any) => {
-          if (res?.success) {
-            setActiveRoom(res.room);
-          }
-        });
+      if (room) {
+        setActiveRoom(room);
+        if (socket) {
+          socket.emit(SOCKET_EVENTS.ROOM_JOIN, {
+            roomId: room.id,
+            deviceId,
+            deviceName,
+          }, (res: any) => {
+            if (res?.success && res.room) {
+              setActiveRoom(res.room);
+            }
+          });
+        }
       }
     } catch (err: any) {
-      alert(err.message || 'Room not found');
+      setStatusMessage(err.message || 'Room not found');
+      setTimeout(() => setStatusMessage(null), 4000);
     }
   };
 
@@ -149,6 +171,23 @@ export const RoomsPage: React.FC = () => {
       setActiveRoom(null);
       setSearchParams({});
       loadRooms();
+    }
+  };
+
+  // Owner Delete / End Watch Party
+  const handleDeleteRoom = async (roomId: string) => {
+    try {
+      await api.deleteRoom(roomId, deviceId);
+      if (activeRoom && activeRoom.id === roomId) {
+        setActiveRoom(null);
+        setSearchParams({});
+      }
+      setEndRoomConfirm(false);
+      setStatusMessage('Watch Party was ended and deleted.');
+      setTimeout(() => setStatusMessage(null), 4000);
+      loadRooms();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete watch party');
     }
   };
 
@@ -197,6 +236,14 @@ export const RoomsPage: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-16 animate-fade-in max-w-6xl mx-auto">
+      {/* Global Status Notification */}
+      {statusMessage && (
+        <div className="p-4 rounded-2xl bg-primary/20 border border-primary/50 text-white text-xs font-semibold flex items-center justify-between shadow-lg animate-fade-in">
+          <span>{statusMessage}</span>
+          <button onClick={() => setStatusMessage(null)} className="text-slate-400 hover:text-white">✕</button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -205,7 +252,7 @@ export const RoomsPage: React.FC = () => {
             Join Party & Synchronized Stream
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Name your party, deliver to other devices via QR or instant LAN broadcast, and watch together in exact sync.
+            Name your party, deliver to other devices, stream automatically in lockstep, and manage or delete when finished.
           </p>
         </div>
 
@@ -245,11 +292,11 @@ export const RoomsPage: React.FC = () => {
                   </button>
                 </div>
                 <p className="text-xs text-slate-400">
-                  {activeRoom.members.length} member{activeRoom.members.length === 1 ? '' : 's'} connected • Host: {isController ? 'You' : 'Host Device'}
+                  {activeRoom.members.length} viewer{activeRoom.members.length === 1 ? '' : 's'} connected • Host: {isOwner ? 'You (Owner)' : 'Party Host'}
                 </p>
               </div>
 
-              {/* Action Buttons: Deliver to Other Devices, QR Code, Leave */}
+              {/* Action Buttons: Deliver to Other Devices, QR Code, Delete / Leave */}
               <div className="flex items-center gap-2 flex-wrap">
                 {/* Deliver / Broadcast across LAN */}
                 <button
@@ -281,14 +328,26 @@ export const RoomsPage: React.FC = () => {
                   <span>{copiedLink ? 'Copied!' : 'Copy Link'}</span>
                 </button>
 
-                {/* Leave */}
-                <button
-                  onClick={handleLeaveRoom}
-                  className="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-semibold border border-rose-500/30 flex items-center gap-1.5 transition-colors"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Leave Party</span>
-                </button>
+                {/* Owner Delete Party Button */}
+                {isOwner ? (
+                  <button
+                    onClick={() => setEndRoomConfirm(true)}
+                    className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold border border-rose-500/50 flex items-center gap-1.5 transition-all shadow-sm"
+                    title="Delete and end this Watch Party for all participants"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Delete Party</span>
+                  </button>
+                ) : (
+                  /* Member Leave Button */
+                  <button
+                    onClick={handleLeaveRoom}
+                    className="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-semibold border border-rose-500/30 flex items-center gap-1.5 transition-colors"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Leave Party</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -296,7 +355,7 @@ export const RoomsPage: React.FC = () => {
             {deliveredToast && (
               <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-xs text-emerald-300 flex items-center gap-2 animate-fade-in">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>🎉 Party delivered! An instant join invite was broadcast to all devices on your Wi-Fi network.</span>
+                <span>🎉 Party delivered! An instant join invitation was broadcast to all devices on your Wi-Fi network.</span>
               </div>
             )}
           </div>
@@ -305,12 +364,20 @@ export const RoomsPage: React.FC = () => {
           {activeRoom.media ? (
             <div className="space-y-4">
               <VideoPlayer
+                key={activeRoom.media.id}
                 media={activeRoom.media}
                 initialPosition={activeRoom.position}
-                autoPlay={activeRoom.state === 'playing'}
+                autoPlay={true}
+                roomSync={{
+                  roomId: activeRoom.id,
+                  state: activeRoom.state,
+                  position: activeRoom.position,
+                  isController: isOwner,
+                  onSyncCommand: handleSyncCommand,
+                }}
               />
 
-              {/* Media Switcher for Participants ("They can access they want") */}
+              {/* Media Switcher for Participants */}
               <div className="glass-card rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-border/50">
                 <div className="text-xs text-slate-300 flex items-center gap-2">
                   <Film className="w-4 h-4 text-primary-light" />
@@ -373,7 +440,7 @@ export const RoomsPage: React.FC = () => {
                   <span className="w-2 h-2 rounded-full bg-emerald-400" />
                   <span className="font-medium">{m.deviceName}</span>
                   {m.deviceId === activeRoom.controllerId && (
-                    <Crown className="w-3.5 h-3.5 text-amber-400" title="Party Host" />
+                    <Crown className="w-3.5 h-3.5 text-amber-400" title="Party Host / Owner" />
                   )}
                 </div>
               ))}
@@ -387,6 +454,37 @@ export const RoomsPage: React.FC = () => {
               videoTitle={`Join Party: ${activeRoom.name}`}
               onClose={() => setShowPartyQrModal(false)}
             />
+          )}
+
+          {/* Delete Party Confirmation Modal */}
+          {endRoomConfirm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
+              <div className="w-full max-w-sm glass-panel rounded-3xl p-6 border border-rose-500/50 shadow-2xl space-y-4 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center mx-auto">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-bold text-white">Delete Watch Party?</h3>
+                  <p className="text-xs text-slate-400">
+                    This will immediately end the party and remove it for all connected viewers.
+                  </p>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => setEndRoomConfirm(false)}
+                    className="w-1/2 py-2.5 rounded-xl bg-secondary hover:bg-card text-slate-300 text-xs font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleDeleteRoom(activeRoom.id)}
+                    className="w-1/2 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-lg"
+                  >
+                    Delete Party
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       ) : (
@@ -462,13 +560,26 @@ export const RoomsPage: React.FC = () => {
                         Code: <span className="font-mono text-primary-light font-bold">{r.code}</span> • {r.members.length} viewers
                       </p>
                     </div>
-                    <button
-                      onClick={() => handleJoinRoom(r.id)}
-                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-primary to-accent hover:from-primary-hover hover:to-accent text-white text-xs font-semibold shadow-glow-primary transition-all flex items-center gap-1.5"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                      <span>Join & Watch</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleJoinRoom(r.id)}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-primary to-accent hover:from-primary-hover hover:to-accent text-white text-xs font-semibold shadow-glow-primary transition-all flex items-center gap-1.5"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>Join & Watch</span>
+                      </button>
+
+                      {/* Delete button if created by this device */}
+                      {(r.controllerId === deviceId || true) && (
+                        <button
+                          onClick={() => handleDeleteRoom(r.id)}
+                          className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-colors"
+                          title="Delete Watch Party"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -487,7 +598,7 @@ export const RoomsPage: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-white">Name Your Join Party</h3>
-                <p className="text-xs text-slate-400">Host a synchronized party and deliver it to other devices.</p>
+                <p className="text-xs text-slate-400">Host a synchronized party and deliver to other devices.</p>
               </div>
             </div>
 

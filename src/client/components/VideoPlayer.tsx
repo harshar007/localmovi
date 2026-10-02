@@ -30,6 +30,13 @@ interface VideoPlayerProps {
   initialPosition?: number;
   onEnded?: () => void;
   autoPlay?: boolean;
+  roomSync?: {
+    roomId: string;
+    state: 'playing' | 'paused';
+    position: number;
+    isController?: boolean;
+    onSyncCommand?: (action: { state?: 'playing' | 'paused'; position?: number; mediaId?: string }) => void;
+  };
 }
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({
@@ -37,6 +44,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   initialPosition = 0,
   onEnded,
   autoPlay = true,
+  roomSync,
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -97,6 +105,25 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     };
   }, [isPlaying, handleActivity]);
 
+  // Room state synchronization (Watch Party Live Sync)
+  useEffect(() => {
+    if (!roomSync || !videoRef.current) return;
+
+    // Sync playback position if delta > 1.5 seconds
+    const timeDelta = Math.abs(videoRef.current.currentTime - roomSync.position);
+    if (timeDelta > 1.5) {
+      videoRef.current.currentTime = roomSync.position;
+      setCurrentTime(roomSync.position);
+    }
+
+    // Sync play/pause state
+    if (roomSync.state === 'playing' && videoRef.current.paused) {
+      videoRef.current.play().catch(() => {});
+    } else if (roomSync.state === 'paused' && !videoRef.current.paused) {
+      videoRef.current.pause();
+    }
+  }, [roomSync?.state, roomSync?.position]);
+
   // Host state synchronization (Live Sync with Host PC)
   useEffect(() => {
     if (!isHostSync || !hostState || hostState.mediaId !== media.id || !videoRef.current) {
@@ -155,8 +182,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (!videoRef.current) return;
     if (videoRef.current.paused) {
       videoRef.current.play().catch(() => {});
+      if (roomSync?.onSyncCommand) {
+        roomSync.onSyncCommand({ state: 'playing', position: videoRef.current.currentTime });
+      }
     } else {
       videoRef.current.pause();
+      if (roomSync?.onSyncCommand) {
+        roomSync.onSyncCommand({ state: 'paused', position: videoRef.current.currentTime });
+      }
     }
   };
 
@@ -166,8 +199,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     setCurrentTime(newTime);
     if (videoRef.current) {
       videoRef.current.currentTime = newTime;
+      if (roomSync?.onSyncCommand) {
+        roomSync.onSyncCommand({ position: newTime, state: isPlaying ? 'playing' : 'paused' });
+      }
     }
-    // If user manually seeks, inform them or disable auto-sync
+    // If user manually seeks outside room sync, switch mode
     if (isHostSync) {
       setIsHostSync(false);
       setToastMessage('Switched to Independent Playback');
@@ -180,6 +216,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const newTime = Math.max(0, Math.min(videoRef.current.duration || duration, videoRef.current.currentTime + seconds));
     videoRef.current.currentTime = newTime;
     setCurrentTime(newTime);
+    if (roomSync?.onSyncCommand) {
+      roomSync.onSyncCommand({ position: newTime, state: isPlaying ? 'playing' : 'paused' });
+    }
     if (isHostSync) {
       setIsHostSync(false);
       setToastMessage('Switched to Independent Playback');

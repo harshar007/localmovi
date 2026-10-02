@@ -4,58 +4,112 @@
 
 @layer base {
   :root {
-    --background: 9 10 15;
-    --card: 18 20 28;
-    --primary: 99 102 241;
+    --background: #131314;
+    --surface: #1E1F20;
+    --surface-secondary: #28292A;
+    --surface-elevated: #303134;
+    --primary: #A8C7FA;
+    --primary-container: #004A77;
+    --on-primary-container: #C2E7FF;
+    --text: #E3E3E3;
+    --text-muted: #A0A0A0;
+    --border: #3C4043;
   }
 
   body {
-    @apply bg-background text-slate-100 font-sans;
-    background-image: 
-      radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, rgba(244, 63, 94, 0.06) 0px, transparent 50%);
-    background-attachment: fixed;
+    @apply bg-background text-[#E3E3E3] font-sans antialiased;
+    background-color: #131314;
   }
 }
 
-/* Custom modern scrollbars */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Material 3 Surface & Card Tokens */
+.m3-surface {
+  background-color: #1E1F20;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-::-webkit-scrollbar-track {
-  background: rgba(18, 20, 28, 0.6);
+.m3-surface-secondary {
+  background-color: #28292A;
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.4);
-  border-radius: 4px;
+.m3-surface-elevated {
+  background-color: #303134;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.7);
-}
-
-/* Glassmorphism helpers */
+/* Glassmorphism helpers matching M3 dark elevation */
 .glass-panel {
-  background: rgba(18, 20, 28, 0.75);
+  background: rgba(30, 31, 32, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .glass-card {
-  background: rgba(24, 27, 38, 0.65);
+  background: rgba(40, 41, 42, 0.75);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .glass-dropdown {
-  background: rgba(18, 20, 28, 0.95);
+  background: rgba(48, 49, 52, 0.95);
   backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Material 3 Pill Button */
+.m3-btn-primary {
+  @apply px-5 py-2.5 rounded-full font-medium text-xs tracking-wide transition-all duration-200 flex items-center justify-center gap-2;
+  background-color: #A8C7FA;
+  color: #062E6F;
+}
+
+.m3-btn-primary:hover {
+  background-color: #C2E7FF;
+  box-shadow: 0 0 16px rgba(168, 199, 250, 0.35);
+}
+
+.m3-btn-secondary {
+  @apply px-5 py-2.5 rounded-full font-medium text-xs tracking-wide transition-all duration-200 flex items-center justify-center gap-2;
+  background-color: #28292A;
+  color: #E3E3E3;
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.m3-btn-secondary:hover {
+  background-color: #303134;
+  color: #FFFFFF;
+}
+
+.m3-btn-tonal {
+  @apply px-4 py-2 rounded-full font-medium text-xs tracking-wide transition-all duration-200 flex items-center justify-center gap-2;
+  background-color: #004A77;
+  color: #C2E7FF;
+}
+
+.m3-btn-tonal:hover {
+  background-color: #0842A0;
+}
+
+/* Custom modern scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #131314;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3C4043;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #5F6368;
 }
 
 /* Range input styling for video scrubber */
@@ -64,6 +118,13 @@ input[type='range'] {
 }
 
 /* Custom text clamp */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
