@@ -168,6 +168,13 @@ export class SocketManager {
         }
       });
 
+      // Watch Party: Deliver / Broadcast invite across LAN
+      socket.on(SOCKET_EVENTS.PARTY_INVITE, (invite: any) => {
+        logger.info('socket', `Delivering Watch Party invite for room ${invite.roomName} (${invite.roomCode})`);
+        // Broadcast to all other devices on the network
+        socket.broadcast.emit(SOCKET_EVENTS.PARTY_INVITE, invite);
+      });
+
       // Disconnect
       socket.on('disconnect', () => {
         const info = this.connectedSockets.get(socket.id);

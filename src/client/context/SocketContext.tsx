@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { SOCKET_EVENTS, HostPlaybackState, ScanProgressEvent, RemoteCommand, ServerLogEntry } from '../../shared/types';
+import { SOCKET_EVENTS, HostPlaybackState, ScanProgressEvent, RemoteCommand, ServerLogEntry, PartyInvite } from '../../shared/types';
+import { useNavigate } from 'react-router-dom';
 
 function getOrCreateDeviceId(): { deviceId: string; deviceName: string; deviceType: 'browser' | 'mobile' | 'host' | 'tablet'; isHost: boolean } {
   let id = localStorage.getItem('localstream_device_id');
@@ -41,8 +42,11 @@ interface SocketContextType {
   hostState: HostPlaybackState | null;
   scanProgress: ScanProgressEvent | null;
   recentLogs: ServerLogEntry[];
+  incomingPartyInvite: PartyInvite | null;
   sendCommandToHost: (cmd: Omit<RemoteCommand, 'senderDeviceId' | 'senderDeviceName'>) => Promise<any>;
   reportHostPlaybackState: (state: Partial<HostPlaybackState>) => void;
+  sendPartyInvite: (invite: { roomId: string; roomCode: string; roomName: string; mediaTitle?: string; mediaThumbnail?: string }) => void;
+  dismissPartyInvite: () => void;
 }
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
@@ -53,6 +57,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [hostState, setHostState] = useState<HostPlaybackState | null>(null);
   const [scanProgress, setScanProgress] = useState<ScanProgressEvent | null>(null);
   const [recentLogs, setRecentLogs] = useState<ServerLogEntry[]>([]);
+  const [incomingPartyInvite, setIncomingPartyInvite] = useState<PartyInvite | null>(null);
 
   const deviceRef = useRef(getOrCreateDeviceId());
 
@@ -86,6 +91,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     newSocket.on(SOCKET_EVENTS.HOST_STATE_CHANGED, (state: HostPlaybackState) => {
       setHostState(state);
+    });
+
+    newSocket.on(SOCKET_EVENTS.PARTY_INVITE, (invite: PartyInvite) => {
+      setIncomingPartyInvite(invite);
     });
 
     newSocket.on(SOCKET_EVENTS.SCAN_PROGRESS, (progress: ScanProgressEvent) => {
@@ -136,6 +145,21 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const sendPartyInvite = (invite: { roomId: string; roomCode: string; roomName: string; mediaTitle?: string; mediaThumbnail?: string }) => {
+    if (socket && isConnected) {
+      const fullInvite: PartyInvite = {
+        ...invite,
+        senderName: deviceRef.current.deviceName,
+        timestamp: new Date().toISOString(),
+      };
+      socket.emit(SOCKET_EVENTS.PARTY_INVITE, fullInvite);
+    }
+  };
+
+  const dismissPartyInvite = () => {
+    setIncomingPartyInvite(null);
+  };
+
   return (
     <SocketContext.Provider
       value={{
@@ -148,8 +172,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         hostState,
         scanProgress,
         recentLogs,
+        incomingPartyInvite,
         sendCommandToHost,
         reportHostPlaybackState,
+        sendPartyInvite,
+        dismissPartyInvite,
       }}
     >
       {children}
@@ -164,3 +191,4 @@ export const useSocket = () => {
   }
   return context;
 };
+

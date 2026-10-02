@@ -10,7 +10,8 @@ import {
   Layers, 
   Check, 
   Radio,
-  Smartphone
+  Smartphone,
+  Users
 } from 'lucide-react';
 import { MediaItem } from '../../shared/types';
 import { api } from '../api/apiClient';
@@ -240,6 +241,17 @@ export const MediaCard: React.FC<{
               title="Scan QR to Play directly on Phone (No Login)"
             >
               <QrCode className="w-5 h-5" />
+            </button>
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/rooms?join=&createMedia=${media.id}`);
+              }}
+              className="w-11 h-11 rounded-full bg-gradient-to-tr from-accent to-primary hover:from-accent-hover hover:to-primary text-white flex items-center justify-center shadow-lg transition-transform hover:scale-110"
+              title="Host Join Party for this movie"
+            >
+              <Users className="w-5 h-5" />
             </button>
 
             <button

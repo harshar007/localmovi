@@ -16,6 +16,14 @@ import { AdminPage } from './pages/AdminPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 
+import { PartyInviteBanner } from './components/PartyInviteBanner';
+import { useParams } from 'react-router-dom';
+
+const PartyRedirectWrapper: React.FC = () => {
+  const { code } = useParams<{ code: string }>();
+  return <Navigate to={`/rooms?join=${code || ''}`} replace />;
+};
+
 const AdminRouteWrapper: React.FC = () => {
   const { isSetupCompleted, refreshStatus } = useAuth();
   if (!isSetupCompleted) {
@@ -44,6 +52,7 @@ const AppContent: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-background text-slate-100">
       <Navbar onSearch={setSearchQuery} />
+      <PartyInviteBanner />
       <div className="flex flex-1 relative">
         <Sidebar />
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto overflow-x-hidden">
@@ -54,6 +63,7 @@ const AppContent: React.FC = () => {
             <Route path="/watch/:id" element={<WatchPage />} />
             <Route path="/remote" element={<RemotePage />} />
             <Route path="/rooms" element={<RoomsPage />} />
+            <Route path="/party/:code" element={<PartyRedirectWrapper />} />
             <Route path="/admin" element={<AdminRouteWrapper />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/login" element={<LoginPage />} />

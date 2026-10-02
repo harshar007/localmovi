@@ -15,12 +15,15 @@ import {
   ArrowLeft,
   Sliders,
   Layers,
-  Sparkles
+  Sparkles,
+  Radio,
+  Link2,
+  Tv
 } from 'lucide-react';
 import { MediaItem } from '../../shared/types';
 import { api } from '../api/apiClient';
 import { useSocket } from '../context/SocketContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface VideoPlayerProps {
   media: MediaItem;
@@ -36,7 +39,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   autoPlay = true,
 }) => {
   const navigate = useNavigate();
-  const { deviceId, sendCommandToHost } = useSocket();
+  const location = useLocation();
+  const { deviceId, sendCommandToHost, hostState, reportHostPlaybackState, isHost } = useSocket();
+
+  const queryParams = new URLSearchParams(location.search);
+  const syncRequested = queryParams.get('sync') === 'true';
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -54,6 +61,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [transcodeMode, setTranscodeMode] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showResumePrompt, setShowResumePrompt] = useState(false);
+  const [isHostSync, setIsHostSync] = useState(syncRequested);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Determine initial stream URL
@@ -63,10 +71,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   // Check if we should prompt to resume
   useEffect(() => {
-    if (initialPosition > 10 && initialPosition < (media.duration || 100) - 30) {
+    if (!syncRequested && initialPosition > 10 && initialPosition < (media.duration || 100) - 30) {
       setShowResumePrompt(true);
     }
-  }, [initialPosition, media.duration]);
+  }, [initialPosition, media.duration, syncRequested]);
 
   // Handle Controls Auto-hide
   const handleActivity = useCallback(() => {
@@ -89,7 +97,45 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     };
   }, [isPlaying, handleActivity]);
 
-  // Save progress periodically
+  // Host state synchronization (Live Sync with Host PC)
+  useEffect(() => {
+    if (!isHostSync || !hostState || hostState.mediaId !== media.id || !videoRef.current) {
+      return;
+    }
+
+    // Sync playback position if delta > 1.5 seconds
+    const timeDelta = Math.abs(videoRef.current.currentTime - hostState.position);
+    if (timeDelta > 1.5) {
+      videoRef.current.currentTime = hostState.position;
+      setCurrentTime(hostState.position);
+    }
+
+    // Sync play/pause state
+    if (hostState.state === 'playing' && videoRef.current.paused) {
+      videoRef.current.play().catch(() => {});
+    } else if (hostState.state === 'paused' && !videoRef.current.paused) {
+      videoRef.current.pause();
+    }
+  }, [isHostSync, hostState, media.id]);
+
+  // Host report broadcast loop (if running on Host PC)
+  useEffect(() => {
+    const reportInterval = setInterval(() => {
+      if (videoRef.current) {
+        reportHostPlaybackState({
+          mediaId: media.id,
+          media,
+          position: videoRef.current.currentTime,
+          duration: videoRef.current.duration || duration,
+          state: isPlaying ? 'playing' : 'paused',
+        });
+      }
+    }, 2000);
+
+    return () => clearInterval(reportInterval);
+  }, [media, isPlaying, duration, reportHostPlaybackState]);
+
+  // Save progress periodically to database
   useEffect(() => {
     const interval = setInterval(() => {
       if (videoRef.current && !videoRef.current.paused && videoRef.current.currentTime > 0) {
@@ -121,6 +167,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (videoRef.current) {
       videoRef.current.currentTime = newTime;
     }
+    // If user manually seeks, inform them or disable auto-sync
+    if (isHostSync) {
+      setIsHostSync(false);
+      setToastMessage('Switched to Independent Playback');
+      setTimeout(() => setToastMessage(null), 2500);
+    }
   };
 
   const skipTime = (seconds: number) => {
@@ -128,9 +180,40 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const newTime = Math.max(0, Math.min(videoRef.current.duration || duration, videoRef.current.currentTime + seconds));
     videoRef.current.currentTime = newTime;
     setCurrentTime(newTime);
+    if (isHostSync) {
+      setIsHostSync(false);
+      setToastMessage('Switched to Independent Playback');
+      setTimeout(() => setToastMessage(null), 2500);
+    }
   };
 
-  // Volume
+  const handleCastToHost = async () => {
+    try {
+      await sendCommandToHost({
+        command: 'loadMedia',
+        mediaId: media.id,
+        position: videoRef.current?.currentTime || 0,
+      });
+      setToastMessage('Playing on Host Screen');
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch {
+      setToastMessage('Could not connect to Host');
+      setTimeout(() => setToastMessage(null), 3000);
+    }
+  };
+
+  const toggleHostSync = () => {
+    setIsHostSync(!isHostSync);
+    setToastMessage(!isHostSync ? '🔗 Synced with Host Screen' : 'Independent Playback');
+    setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  const toggleMute = () => {
+    if (!videoRef.current) return;
+    videoRef.current.muted = !isMuted;
+    setIsMuted(!isMuted);
+  };
+
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVol = parseFloat(e.target.value);
     setVolume(newVol);
@@ -141,15 +224,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   };
 
-  const toggleMute = () => {
-    if (!videoRef.current) return;
-    const newMuted = !isMuted;
-    videoRef.current.muted = newMuted;
-    setIsMuted(newMuted);
-  };
-
-  // Playback Rate
-  const handleRateChange = (rate: number) => {
+  const handleSpeedChange = (rate: number) => {
     setPlaybackRate(rate);
     if (videoRef.current) {
       videoRef.current.playbackRate = rate;
@@ -157,45 +232,32 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     setShowSpeedMenu(false);
   };
 
-  // Fullscreen
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+      containerRef.current.requestFullscreen().catch(() => {});
+      setIsFullscreen(true);
     } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+      document.exitFullscreen().catch(() => {});
+      setIsFullscreen(false);
     }
   };
 
-  // Cast / Play on Host PC
-  const handleCastToHost = async () => {
-    try {
-      if (videoRef.current) {
-        videoRef.current.pause();
-      }
-      await sendCommandToHost({
-        command: 'loadMedia',
-        mediaId: media.id,
-        position: currentTime,
-      });
-      setToastMessage('Sent to Host PC');
-      setTimeout(() => setToastMessage(null), 3000);
-    } catch {
-      setToastMessage('Host PC offline');
-      setTimeout(() => setToastMessage(null), 3000);
-    }
-  };
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore typing in inputs
-      if (['input', 'textarea'].includes((e.target as HTMLElement).tagName.toLowerCase())) {
-        return;
-      }
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
       handleActivity();
-
       switch (e.key.toLowerCase()) {
         case ' ':
         case 'k':
@@ -297,7 +359,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }}
         onClick={togglePlay}
         onError={() => {
-          // If direct play fails (e.g. MKV/AVI/AC3), switch automatically to transcode mode
           if (!transcodeMode) {
             setTranscodeMode(true);
             setToastMessage('Switching to Transcoding stream...');
@@ -310,6 +371,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       {isBuffering && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none">
           <div className="w-14 h-14 border-4 border-primary border-t-transparent rounded-full animate-spin shadow-glow-primary" />
+        </div>
+      )}
+
+      {/* Live Host Sync Status Pill */}
+      {isHostSync && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 px-3 py-1 bg-emerald-500/90 text-white rounded-full text-[11px] font-bold shadow-lg flex items-center gap-1.5 animate-pulse">
+          <Radio className="w-3.5 h-3.5" />
+          <span>Synced with Host Screen</span>
         </div>
       )}
 
@@ -350,7 +419,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         </div>
       )}
 
-      {/* Top Header Controls (Back, Title, Cast to Host) */}
+      {/* Top Header Controls (Back, Title, Cast to Host, Sync with Host) */}
       <div
         className={`absolute top-0 left-0 right-0 p-4 sm:p-6 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center justify-between transition-opacity duration-300 z-20 ${
           showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -376,15 +445,32 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           </div>
         </div>
 
-        {/* Cast to Host PC Button */}
+        {/* Action Buttons: Sync with Host & Cast to Host */}
         <div className="flex items-center gap-2">
+          {/* Host Sync Button */}
+          {hostState && hostState.mediaId === media.id && (
+            <button
+              onClick={toggleHostSync}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold backdrop-blur-md border transition-all ${
+                isHostSync
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : 'bg-secondary/80 text-slate-300 border-border hover:text-white'
+              }`}
+              title="Toggle Live Synchronized Playback with Host"
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{isHostSync ? 'Synced' : 'Sync with Host'}</span>
+            </button>
+          )}
+
+          {/* Cast / Host on Big Screen */}
           <button
             onClick={handleCastToHost}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-secondary/80 hover:bg-primary backdrop-blur-md text-white text-xs font-semibold border border-white/10 shadow-lg transition-all"
-            title="Stream / Control on Host PC"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary/80 hover:bg-primary backdrop-blur-md text-white text-xs font-semibold border border-white/10 shadow-lg transition-all"
+            title="Host / Play on Host PC Big Screen"
           >
-            <Monitor className="w-4 h-4" />
-            <span className="hidden sm:inline">Play on Host</span>
+            <Monitor className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Host PC</span>
           </button>
         </div>
       </div>
@@ -442,7 +528,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             <button
               onClick={() => skipTime(-10)}
               className="p-2 rounded-xl text-slate-300 hover:text-white transition-colors"
-              title="Rewind 10 seconds (J)"
+              title="Rewind 10s (J)"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
@@ -450,7 +536,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             <button
               onClick={() => skipTime(10)}
               className="p-2 rounded-xl text-slate-300 hover:text-white transition-colors"
-              title="Forward 10 seconds (L)"
+              title="Fast-forward 10s (L)"
             >
               <RotateCw className="w-4 h-4" />
             </button>
@@ -460,9 +546,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               <button
                 onClick={toggleMute}
                 className="p-2 rounded-xl text-slate-300 hover:text-white transition-colors"
-                title="Mute (M)"
               >
-                {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 text-rose-400" /> : <Volume2 className="w-5 h-5" />}
+                {isMuted || volume === 0 ? (
+                  <VolumeX className="w-5 h-5 text-rose-400" />
+                ) : (
+                  <Volume2 className="w-5 h-5" />
+                )}
               </button>
               <input
                 type="range"
@@ -471,54 +560,60 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 step="0.05"
                 value={isMuted ? 0 : volume}
                 onChange={handleVolumeChange}
-                className="w-16 sm:w-24 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-primary"
+                className="w-16 sm:w-20 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-primary opacity-60 group-hover/vol:opacity-100 transition-opacity"
               />
             </div>
           </div>
 
-          {/* Right Buttons: Transcode toggle, Speed, Fullscreen */}
-          <div className="flex items-center gap-2 sm:gap-3 relative">
-            {/* Direct / Transcode Mode Indicator */}
-            <button
-              onClick={() => setTranscodeMode(!transcodeMode)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                transcodeMode
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-              }`}
-              title={transcodeMode ? 'Transcoding active via FFmpeg' : 'Direct Play (Zero CPU)'}
-            >
-              {transcodeMode ? 'Transcoded' : 'Direct Play'}
-            </button>
-
-            {/* Speed Menu */}
+          {/* Right Buttons: Speed, Transcode, Fullscreen */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Speed Selector */}
             <div className="relative">
               <button
                 onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-                className="px-2.5 py-1 rounded-lg bg-card/80 hover:bg-card text-xs font-mono font-medium text-slate-300 hover:text-white border border-border"
+                className="px-2.5 py-1.5 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-xs font-mono font-semibold text-slate-200 hover:text-white transition-colors"
               >
                 {playbackRate}x
               </button>
 
               {showSpeedMenu && (
-                <div className="absolute bottom-full right-0 mb-2 py-1.5 w-24 glass-dropdown rounded-xl shadow-xl z-30 flex flex-col">
+                <div className="absolute bottom-full right-0 mb-2 py-1.5 bg-card/95 backdrop-blur-md rounded-2xl border border-border shadow-xl min-w-[90px] flex flex-col z-30 animate-slide-up">
                   {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
                     <button
                       key={rate}
-                      onClick={() => handleRateChange(rate)}
-                      className={`px-3 py-1.5 text-xs text-left flex items-center justify-between hover:bg-primary/20 ${
-                        playbackRate === rate ? 'text-primary-light font-bold' : 'text-slate-300'
+                      onClick={() => handleSpeedChange(rate)}
+                      className={`px-3 py-1.5 text-xs text-left font-mono flex items-center justify-between hover:bg-secondary transition-colors ${
+                        playbackRate === rate ? 'text-primary font-bold' : 'text-slate-300'
                       }`}
                     >
                       <span>{rate}x</span>
-                      {playbackRate === rate && <Check className="w-3 h-3" />}
+                      {playbackRate === rate && <Check className="w-3 h-3 text-primary" />}
                     </button>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Fullscreen Button */}
+            {/* Transcode Toggle */}
+            <button
+              onClick={() => {
+                setTranscodeMode(!transcodeMode);
+                setToastMessage(
+                  !transcodeMode ? 'Enabled Real-Time Transcoding' : 'Enabled Direct Stream'
+                );
+                setTimeout(() => setToastMessage(null), 2500);
+              }}
+              className={`p-2 rounded-xl transition-colors ${
+                transcodeMode
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Toggle Transcoding Engine"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+
+            {/* Fullscreen Toggle */}
             <button
               onClick={toggleFullscreen}
               className="p-2 rounded-xl text-slate-300 hover:text-white transition-colors"
@@ -530,10 +625,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         </div>
       </div>
 
-      {/* Toast Alert */}
+      {/* In-Player Toast Alerts */}
       {toastMessage && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 px-4 py-2 bg-emerald-600/90 backdrop-blur-md text-white text-xs font-semibold rounded-full shadow-2xl flex items-center gap-2 animate-fade-in z-40">
-          <Check className="w-4 h-4" />
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2 bg-black/90 backdrop-blur-md border border-white/20 text-white text-xs font-semibold rounded-2xl shadow-2xl flex items-center gap-2 animate-fade-in">
+          <Check className="w-4 h-4 text-emerald-400" />
           <span>{toastMessage}</span>
         </div>
       )}

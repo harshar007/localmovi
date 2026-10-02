@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Tv, 
   QrCode, 
@@ -12,27 +12,30 @@ import {
   User, 
   FolderPlus,
   RefreshCw,
-  Play
+  Play,
+  Film,
+  Shield,
+  Settings
 } from 'lucide-react';
 import { useSocket } from '../context/SocketContext';
-import { useAuth } from '../context/AuthContext';
 import { api } from '../api/apiClient';
 import { QRCodeModal } from './QRCodeModal';
 
 export const Navbar: React.FC<{ onSearch?: (query: string) => void }> = ({ onSearch }) => {
   const navigate = useNavigate();
-  const { isConnected, hostState, scanProgress, isHost } = useSocket();
-  const { user, logout } = useAuth();
+  const location = useLocation();
+  const { hostState, scanProgress } = useSocket();
 
   const [lanUrl, setLanUrl] = useState<string>('');
-  const [qrCode, setQrCode] = useState<string>('');
   const [showQrModal, setShowQrModal] = useState(false);
+  const [defaultQrTab, setDefaultQrTab] = useState<'viewer' | 'admin'>('viewer');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const isAdminPage = location.pathname.startsWith('/admin') || location.pathname.startsWith('/settings');
 
   useEffect(() => {
     api.getQrCode().then((res) => {
       setLanUrl(res.lanUrl);
-      setQrCode(res.qrCode);
     }).catch(() => {});
   }, []);
 
@@ -68,18 +71,19 @@ export const Navbar: React.FC<{ onSearch?: (query: string) => void }> = ({ onSea
             </div>
           </Link>
 
-          {/* LAN URL Pill */}
-          {lanUrl && (
-            <button
-              onClick={() => setShowQrModal(true)}
-              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary/80 hover:bg-secondary border border-border text-xs text-slate-300 hover:text-white transition-colors"
-              title="Click to view QR Code & LAN connection details"
-            >
-              <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-              <span className="font-mono text-emerald-400 font-medium">{lanUrl}</span>
-              <QrCode className="w-3.5 h-3.5 text-slate-400 ml-1" />
-            </button>
-          )}
+          {/* Dual QR Code trigger button */}
+          <button
+            onClick={() => {
+              setDefaultQrTab('viewer');
+              setShowQrModal(true);
+            }}
+            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-secondary/80 hover:bg-secondary border border-border text-xs text-slate-300 hover:text-white transition-colors"
+            title="Scan QR Code for Movies or Admin"
+          >
+            <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+            <span className="font-mono text-emerald-400 font-medium">{lanUrl || '192.168.1.37:3000'}</span>
+            <QrCode className="w-3.5 h-3.5 text-primary-light ml-1" />
+          </button>
         </div>
 
         {/* Center: Live Search */}
@@ -96,7 +100,7 @@ export const Navbar: React.FC<{ onSearch?: (query: string) => void }> = ({ onSea
           </form>
         </div>
 
-        {/* Right: Status, Controls, User */}
+        {/* Right: Mode Switcher, QR, Host status */}
         <div className="flex items-center gap-3">
           {/* Scan Progress Indicator */}
           {scanProgress && scanProgress.status !== 'completed' && (
@@ -123,55 +127,64 @@ export const Navbar: React.FC<{ onSearch?: (query: string) => void }> = ({ onSea
             </Link>
           )}
 
-          {/* QR Code Button for Mobile view */}
+          {/* Dual QR Code Button */}
           <button
-            onClick={() => setShowQrModal(true)}
-            className="p-2 rounded-xl bg-card hover:bg-card-hover border border-border text-slate-300 hover:text-white transition-colors"
-            title="Scan QR Code to open on mobile"
+            onClick={() => {
+              setDefaultQrTab('viewer');
+              setShowQrModal(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card hover:bg-card-hover border border-border text-slate-200 hover:text-white transition-all text-xs font-semibold shadow-sm"
+            title="Open Dual QR Codes (Movie & Admin)"
           >
-            <QrCode className="w-4 h-4" />
+            <QrCode className="w-4 h-4 text-emerald-400" />
+            <span className="hidden sm:inline">QR Codes</span>
           </button>
 
           {/* Quick Remote Button */}
           <Link
             to="/remote"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-semibold shadow-glow-primary transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary hover:bg-card border border-border text-slate-200 hover:text-white text-xs font-semibold transition-all"
           >
-            <Smartphone className="w-3.5 h-3.5" />
+            <Smartphone className="w-3.5 h-3.5 text-primary-light" />
             <span className="hidden sm:inline">Remote</span>
           </Link>
 
-          {/* User Auth Menu */}
-          {user ? (
-            <div className="flex items-center gap-2 pl-2 border-l border-border/50">
-              <span className="text-xs text-slate-400 font-medium hidden xl:inline">
-                {user.username}
-              </span>
-              <button
-                onClick={logout}
-                className="p-2 rounded-xl hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors"
-                title="Log out"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
+          {/* Mode Switcher: Movie vs Admin */}
+          <div className="flex items-center bg-secondary/80 p-0.5 rounded-xl border border-border text-xs font-semibold">
             <Link
-              to="/login"
-              className="p-2 rounded-xl hover:bg-card border border-transparent hover:border-border text-slate-400 hover:text-white transition-colors"
-              title="Admin Login"
+              to="/"
+              className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all ${
+                !isAdminPage
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Switch to Movie Viewer Mode"
             >
-              <User className="w-4 h-4" />
+              <Film className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Movies</span>
             </Link>
-          )}
+
+            <Link
+              to="/admin"
+              className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all ${
+                isAdminPage
+                  ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Switch to Admin Dashboard Mode"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Admin</span>
+            </Link>
+          </div>
         </div>
       </header>
 
-      {/* QR Code Modal */}
+      {/* Dual QR Code Modal */}
       {showQrModal && (
         <QRCodeModal
           lanUrl={lanUrl}
-          qrCode={qrCode}
+          defaultTab={defaultQrTab}
           onClose={() => setShowQrModal(false)}
         />
       )}

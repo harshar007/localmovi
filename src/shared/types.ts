@@ -138,6 +138,16 @@ export interface RemoteCommandAck {
   error?: string;
 }
 
+export interface PartyInvite {
+  roomId: string;
+  roomCode: string;
+  roomName: string;
+  senderName: string;
+  mediaTitle?: string;
+  mediaThumbnail?: string;
+  timestamp: string;
+}
+
 export interface ScanProgressEvent {
   status: 'idle' | 'scanning' | 'extracting_metadata' | 'generating_thumbnails' | 'completed' | 'error';
   folder?: string;
@@ -181,12 +191,13 @@ export const SOCKET_EVENTS = {
   DEVICE_HEARTBEAT: 'device:heartbeat',
   DEVICES_UPDATED: 'devices:updated',
 
-  // Synchronized Room events
+  // Synchronized Room & Watch Party events
   ROOM_JOIN: 'room:join',
   ROOM_LEAVE: 'room:leave',
   ROOM_SYNC_COMMAND: 'room:sync_command',
   ROOM_STATE_UPDATED: 'room:state_updated',
   ROOM_MEMBERS_UPDATED: 'room:members_updated',
+  PARTY_INVITE: 'party:invite',
 
   // Library Scanner events
   SCAN_PROGRESS: 'scan:progress',
@@ -195,3 +206,4 @@ export const SOCKET_EVENTS = {
   // System logs
   LOG_ENTRY: 'log:entry',
 } as const;
+

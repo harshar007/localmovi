@@ -13,7 +13,8 @@ import {
   ChevronRight,
   Sparkles,
   QrCode,
-  Smartphone
+  Smartphone,
+  Plus
 } from 'lucide-react';
 import { api } from '../api/apiClient';
 import { MediaItem } from '../../shared/types';
@@ -25,12 +26,14 @@ import { useSocket } from '../context/SocketContext';
 export const WatchPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { deviceId, sendCommandToHost } = useSocket();
+  const { deviceId, deviceName, sendCommandToHost, sendPartyInvite } = useSocket();
 
   const [media, setMedia] = useState<MediaItem | null>(null);
   const [upNext, setUpNext] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [showPartyModal, setShowPartyModal] = useState(false);
+  const [partyName, setPartyName] = useState('');
 
   useEffect(() => {
     if (!id) return;
@@ -38,6 +41,7 @@ export const WatchPage: React.FC = () => {
     api.getMediaById(id, deviceId)
       .then((data) => {
         setMedia(data);
+        setPartyName(`${deviceName}'s Party - ${data.title}`);
         // Load up next / other videos
         api.getMedia({ folderId: data.libraryFolderId || undefined })
           .then((items) => {
@@ -49,7 +53,33 @@ export const WatchPage: React.FC = () => {
         console.error('Failed to load video', err);
       })
       .finally(() => setLoading(false));
-  }, [id, deviceId]);
+  }, [id, deviceId, deviceName]);
+
+  const handleCreateParty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!media) return;
+    try {
+      const room = await api.createRoom({
+        name: partyName.trim() || `${deviceName}'s Watch Party`,
+        deviceId,
+        deviceName,
+        mediaId: media.id,
+      });
+
+      // Deliver invite to all LAN screens
+      sendPartyInvite({
+        roomId: room.id,
+        roomCode: room.code,
+        roomName: room.name,
+        mediaTitle: media.title,
+      });
+
+      // Jump to party room automatically
+      navigate(`/rooms?join=${room.code}`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to create watch party');
+    }
+  };
 
   const formatFileSize = (bytes: number) => {
     if (!bytes) return '0 MB';
@@ -129,6 +159,17 @@ export const WatchPage: React.FC = () => {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Host Join Party Button */}
+            <button
+              onClick={() => setShowPartyModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-primary to-accent hover:from-primary-hover hover:to-accent text-xs font-bold text-white shadow-glow-primary transition-all active:scale-95"
+              title="Host a synchronized Join Party and deliver to phones / other devices"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Host Join Party</span>
+            </button>
+
+            {/* Play on Phone QR Modal */}
             <button
               onClick={() => setShowQrModal(true)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-xs font-semibold text-emerald-300 hover:text-emerald-200 transition-all shadow-sm"
@@ -152,14 +193,6 @@ export const WatchPage: React.FC = () => {
               <Monitor className="w-4 h-4 text-primary-light" />
               <span>Cast to Host</span>
             </button>
-
-            <Link
-              to="/rooms"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary hover:bg-card border border-border text-xs font-semibold text-white transition-all shadow-sm"
-            >
-              <Users className="w-4 h-4 text-accent" />
-              <span>Watch Party</span>
-            </Link>
           </div>
         </div>
 
@@ -218,6 +251,60 @@ export const WatchPage: React.FC = () => {
             {upNext.map((item) => (
               <MediaCard key={item.id} media={item} />
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Host Party Modal */}
+      {showPartyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
+          <div className="w-full max-w-md glass-panel rounded-3xl p-6 border border-border shadow-2xl space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white shadow-glow-primary">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Name Your Join Party</h3>
+                <p className="text-xs text-slate-400">Stream "{media.title}" synchronized with other devices.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleCreateParty} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">Party Name</label>
+                <input
+                  type="text"
+                  value={partyName}
+                  onChange={(e) => setPartyName(e.target.value)}
+                  autoFocus
+                  className="w-full px-4 py-2.5 rounded-xl bg-secondary/80 border border-border focus:border-primary text-xs text-white focus:outline-none"
+                />
+              </div>
+
+              <div className="p-3 rounded-2xl bg-secondary/60 border border-border/50 text-xs text-slate-300 space-y-1">
+                <div className="font-semibold text-white">📡 Automatic LAN Delivery</div>
+                <div className="text-[11px] text-slate-400">
+                  When created, an instant join invitation will be delivered to connected devices, and a QR code will be generated for quick phone scanning.
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPartyModal(false)}
+                  className="w-1/2 py-2.5 rounded-xl bg-secondary hover:bg-card text-slate-300 text-xs font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 rounded-xl bg-gradient-to-r from-primary to-accent hover:from-primary-hover hover:to-accent text-white text-xs font-semibold shadow-glow-primary flex items-center justify-center gap-1.5"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Host & Deliver</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
