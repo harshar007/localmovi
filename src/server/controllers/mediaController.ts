@@ -9,6 +9,12 @@ import { logger } from '../services/loggerService';
 
 export const uploadMedia = async (req: Request, res: Response) => {
   try {
+    req.setTimeout(0); // Disable socket timeout for large video uploads from phones
+
+    if (!fs.existsSync(UPLOADS_DIR)) {
+      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+    }
+
     const rawFileName = req.headers['x-filename']
       ? decodeURIComponent(req.headers['x-filename'] as string)
       : `mobile_video_${Date.now()}.mp4`;
@@ -23,9 +29,19 @@ export const uploadMedia = async (req: Request, res: Response) => {
 
     req.pipe(writeStream);
 
+    req.on('error', (err) => {
+      logger.error('server', `Upload request stream error: ${err.message}`);
+      try { writeStream.destroy(); } catch {}
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Upload interrupted by network error' });
+      }
+    });
+
     writeStream.on('error', (err) => {
       logger.error('server', `Upload write error: ${err.message}`);
-      res.status(500).json({ error: 'Failed to write uploaded file' });
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to write uploaded file to server storage' });
+      }
     });
 
     writeStream.on('finish', async () => {

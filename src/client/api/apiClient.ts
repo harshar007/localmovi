@@ -66,12 +66,13 @@ export const api = {
     request<{ id: string; favorite: boolean }>(`/media/${id}/favorite`, { method: 'PATCH' }),
   updateProgress: (id: string, data: { deviceId: string; position: number; duration: number; completed?: boolean }) =>
     request(`/media/${id}/progress`, { method: 'POST', body: JSON.stringify(data) }),
-  uploadMedia: (file: File, onProgress?: (percent: number) => void): Promise<MediaItem> => {
+  uploadMedia: (file: File, onProgress?: (percent: number, loadedBytes?: number, totalBytes?: number) => void): Promise<MediaItem> => {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `${API_BASE}/media/upload`, true);
+      xhr.timeout = 0; // No client timeout for large movies
       xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-      xhr.setRequestHeader('x-filename', encodeURIComponent(file.name));
+      xhr.setRequestHeader('x-filename', encodeURIComponent(file.name || 'mobile_video.mp4'));
 
       const token = getAuthToken();
       if (token) {
@@ -80,9 +81,9 @@ export const api = {
 
       if (xhr.upload && onProgress) {
         xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            const percent = Math.round((e.loaded / e.total) * 100);
-            onProgress(percent);
+          if (e.lengthComputable && e.total > 0) {
+            const percent = Math.min(99, Math.round((e.loaded / e.total) * 100));
+            onProgress(percent, e.loaded, e.total);
           }
         };
       }
@@ -90,6 +91,7 @@ export const api = {
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
+            if (onProgress) onProgress(100, file.size, file.size);
             const res = JSON.parse(xhr.responseText);
             resolve(res);
           } catch (err) {
@@ -105,7 +107,9 @@ export const api = {
         }
       };
 
-      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.onerror = () => reject(new Error('Network error during upload. Ensure phone is on the same Wi-Fi network.'));
+      xhr.ontimeout = () => reject(new Error('Upload timed out'));
+      xhr.onabort = () => reject(new Error('Upload cancelled'));
       xhr.send(file);
     });
   },

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { 
   Film, 
   Search, 
@@ -10,7 +10,9 @@ import {
   RefreshCw, 
   FolderOpen,
   Check,
-  Heart
+  Heart,
+  Smartphone,
+  UploadCloud
 } from 'lucide-react';
 import { api } from '../api/apiClient';
 import { MediaItem, LibraryFolderItem } from '../../shared/types';
@@ -19,6 +21,7 @@ import { useSocket } from '../context/SocketContext';
 import { MobileVideoShareModal } from '../components/MobileVideoShareModal';
 
 export const LibraryPage: React.FC = () => {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { deviceId, scanProgress } = useSocket();
 
@@ -126,11 +129,11 @@ export const LibraryPage: React.FC = () => {
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => setShowPhoneShareModal(true)}
-            className="px-3.5 py-1.5 rounded-full bg-[#004A77] hover:bg-[#0842A0] text-[#C2E7FF] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
-            title="Share a video from this phone or tablet"
+            className="px-3.5 py-1.5 rounded-full bg-[#A8C7FA] hover:bg-[#C2E7FF] text-[#062E6F] text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+            title="Upload and share a video from laptop or phone"
           >
-            <Smartphone className="w-3.5 h-3.5 text-[#A8C7FA]" />
-            <span>Share from Phone</span>
+            <UploadCloud className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Upload Movie</span>
           </button>
 
           <div className="flex items-center p-1 rounded-full bg-[#28292A] border border-[#3C4043]/50">
@@ -255,7 +258,7 @@ export const LibraryPage: React.FC = () => {
           {displayedMedia.length > 0 && (
             <button
               onClick={() => {
-                window.location.href = `/rooms?createMedia=${displayedMedia[0].id}`;
+                navigate(`/rooms?createMedia=${displayedMedia[0].id}`);
               }}
               className="m3-btn-primary py-2 px-4 text-xs font-bold shadow-sm active:scale-95 w-full sm:w-auto"
             >

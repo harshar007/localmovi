@@ -1,3 +1,5 @@
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Tv, 
   QrCode, 
@@ -99,15 +101,14 @@ export const Navbar: React.FC<{ onSearch?: (query: string) => void }> = ({ onSea
             </div>
           )}
 
-          {/* Share Movie from Phone */}
+          {/* Upload Movie (Laptop / Phone) */}
           <button
             onClick={() => setShowPhoneShareModal(true)}
-            className="px-3.5 py-1.5 rounded-full bg-[#004A77] hover:bg-[#0842A0] text-[#C2E7FF] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
-            title="Share a video file from this phone or device"
+            className="px-3.5 py-1.5 rounded-full bg-[#A8C7FA] hover:bg-[#C2E7FF] text-[#062E6F] text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+            title="Upload and share a video from laptop or phone"
           >
-            <Smartphone className="w-3.5 h-3.5 text-[#A8C7FA]" />
-            <span className="hidden sm:inline">Share from Phone</span>
-            <span className="sm:hidden">Share</span>
+            <UploadCloud className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Upload Movie</span>
           </button>
 
           {/* Show QR / Connect Phone */}

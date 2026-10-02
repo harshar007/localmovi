@@ -9,11 +9,14 @@ import {
   Film, 
   Radio, 
   QrCode, 
-  ChevronRight,
-  TrendingUp,
-  Smartphone,
-  Users,
-  Compass
+  ChevronRight, 
+  TrendingUp, 
+  Smartphone, 
+  Users, 
+  Compass,
+  UploadCloud,
+  Laptop,
+  ArrowRight
 } from 'lucide-react';
 import { api } from '../api/apiClient';
 import { MediaItem, RoomItem } from '../../shared/types';
@@ -121,13 +124,13 @@ export const HomePage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5">
-          {/* Share Movie from Phone */}
+          {/* Direct Upload Button */}
           <button
             onClick={() => setShowPhoneShareModal(true)}
-            className="px-4 py-2 rounded-full bg-[#004A77] hover:bg-[#0842A0] text-[#C2E7FF] text-xs font-semibold flex items-center gap-2 transition-all shadow-sm active:scale-95"
+            className="px-4 py-2 rounded-full bg-[#A8C7FA] hover:bg-[#C2E7FF] text-[#062E6F] text-xs font-bold flex items-center gap-2 transition-all shadow-sm active:scale-95"
           >
-            <Smartphone className="w-4 h-4 text-[#A8C7FA]" />
-            <span>Share Movie from Phone</span>
+            <UploadCloud className="w-4 h-4 stroke-[2.5]" />
+            <span>Upload Movie</span>
           </button>
 
           {lanInfo.lanUrl && (
@@ -139,6 +142,47 @@ export const HomePage: React.FC = () => {
               <span>Connect Phone</span>
             </button>
           )}
+        </div>
+      </div>
+
+      {/* 🚀 IMGBB-STYLE EASY UPLOAD HERO CARD */}
+      <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-[#1E1F20] via-[#1E1F20] to-[#004A77]/40 border border-[#3C4043] hover:border-[#A8C7FA]/60 shadow-elevation-2 transition-all group">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+          <div className="space-y-2 max-w-xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#004A77]/80 border border-[#A8C7FA]/30 text-[#C2E7FF] text-xs font-semibold">
+              <Sparkles className="w-3.5 h-3.5 text-[#A8C7FA]" />
+              <span>Instant LAN Video Streaming</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Upload and share your movies
+            </h2>
+            <p className="text-xs sm:text-sm text-[#A0A0A0]">
+              Drag & drop any video anywhere, or select directly from your Laptop, PC, or Phone.
+            </p>
+            
+            {/* Format Tags (ImgBB style tags) */}
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 pt-2">
+              {['MP4', 'MKV', 'MOV', 'WebM', 'AVI', '4K UHD', '1080p', 'HDR'].map((tag) => (
+                <span
+                  key={tag}
+                  className="px-2.5 py-0.5 rounded-lg bg-[#28292A] border border-[#3C4043]/60 text-[10px] font-mono text-[#A8C7FA] font-bold"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0 w-full md:w-auto">
+            <button
+              onClick={() => setShowPhoneShareModal(true)}
+              className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#A8C7FA] hover:bg-[#C2E7FF] text-[#062E6F] text-sm sm:text-base font-black flex items-center justify-center gap-2.5 shadow-lg group-hover:scale-105 transition-transform active:scale-95 uppercase tracking-wider"
+            >
+              <UploadCloud className="w-5 h-5 stroke-[2.5]" />
+              <span>START UPLOADING</span>
+              <ArrowRight className="w-4 h-4 stroke-[3]" />
+            </button>
+          </div>
         </div>
       </div>
 
