@@ -42,6 +42,7 @@ app.get('/api/auth/me', authService.authenticate(), authController.getCurrentUse
 
 // Media Routes
 app.get('/api/media', authService.authenticate(), mediaController.getMediaList);
+app.post('/api/media/upload', mediaController.uploadMedia);
 app.get('/api/media/:id', authService.authenticate(), mediaController.getMediaById);
 app.patch('/api/media/:id/favorite', authService.authenticate(), mediaController.toggleFavorite);
 app.get('/api/media/:id/stream', mediaController.streamMedia);

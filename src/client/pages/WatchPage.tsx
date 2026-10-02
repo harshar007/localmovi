@@ -221,11 +221,11 @@ export const WatchPage: React.FC = () => {
             {/* Host Watch Party */}
             <button
               onClick={() => setShowPartyModal(true)}
-              className="m3-btn-tonal"
+              className="px-4 py-2 rounded-full bg-[#004A77] hover:bg-[#0842A0] text-[#C2E7FF] text-xs font-semibold flex items-center gap-2 transition-all shadow-sm active:scale-95"
               title="Stream together with friends on LAN"
             >
-              <Sparkles className="w-4 h-4 text-[#A8C7FA]" />
-              <span>Watch Together</span>
+              <Users className="w-4 h-4 text-[#A8C7FA]" />
+              <span>Host Watch Party</span>
             </button>
 
             {/* Play on Phone QR */}

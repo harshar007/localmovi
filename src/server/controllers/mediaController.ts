@@ -3,8 +3,123 @@ import fs from 'fs';
 import path from 'path';
 import { prisma } from '../db';
 import { streamingService } from '../services/streamingService';
-import { THUMBNAILS_DIR } from '../config';
+import { ffmpegService } from '../services/ffmpegService';
+import { THUMBNAILS_DIR, UPLOADS_DIR } from '../config';
 import { logger } from '../services/loggerService';
+
+export const uploadMedia = async (req: Request, res: Response) => {
+  try {
+    const rawFileName = req.headers['x-filename']
+      ? decodeURIComponent(req.headers['x-filename'] as string)
+      : `mobile_video_${Date.now()}.mp4`;
+
+    const sanitizedFileName = path.basename(rawFileName).replace(/[^a-zA-Z0-9._ -]/g, '_');
+    const ext = path.extname(sanitizedFileName) || '.mp4';
+    const baseName = path.basename(sanitizedFileName, ext);
+    const uniqueFileName = `${baseName}_${Date.now()}${ext}`;
+    const targetFilePath = path.join(UPLOADS_DIR, uniqueFileName);
+
+    const writeStream = fs.createWriteStream(targetFilePath);
+
+    req.pipe(writeStream);
+
+    writeStream.on('error', (err) => {
+      logger.error('server', `Upload write error: ${err.message}`);
+      res.status(500).json({ error: 'Failed to write uploaded file' });
+    });
+
+    writeStream.on('finish', async () => {
+      try {
+        const stats = await fs.promises.stat(targetFilePath);
+        let meta;
+        try {
+          meta = await ffmpegService.probeMetadata(targetFilePath);
+        } catch {
+          meta = {
+            duration: 0,
+            width: 0,
+            height: 0,
+            resolution: 'Unknown',
+            codec: ext.replace('.', '').toLowerCase(),
+          };
+        }
+
+        // Find or create 'Mobile Uploads' folder
+        let mobileFolder = await prisma.libraryFolder.findFirst({
+          where: { name: 'Mobile Uploads' },
+        });
+
+        if (!mobileFolder) {
+          mobileFolder = await prisma.libraryFolder.create({
+            data: {
+              name: 'Mobile Uploads',
+              folderPath: UPLOADS_DIR,
+              enabled: true,
+            },
+          });
+        }
+
+        const cleanTitle = baseName.replace(/[._-]/g, ' ').trim() || 'Mobile Video';
+
+        const media = await prisma.media.create({
+          data: {
+            title: cleanTitle,
+            filePath: targetFilePath,
+            fileSize: stats.size,
+            duration: meta.duration,
+            resolution: meta.resolution,
+            width: meta.width,
+            height: meta.height,
+            codec: meta.codec,
+            audioCodec: meta.audioCodec,
+            bitrate: meta.bitrate,
+            frameRate: meta.frameRate,
+            libraryFolderId: mobileFolder.id,
+          },
+        });
+
+        // Generate thumbnail
+        try {
+          const thumbName = await ffmpegService.generateThumbnail(media.id, targetFilePath, media.duration);
+          await prisma.media.update({
+            where: { id: media.id },
+            data: { thumbnailPath: thumbName },
+          });
+        } catch (thumbErr: any) {
+          logger.warn('server', `Could not generate thumbnail for upload ${media.id}: ${thumbErr.message}`);
+        }
+
+        const formatted = {
+          id: media.id,
+          title: media.title,
+          filePath: media.filePath,
+          fileSize: media.fileSize,
+          duration: media.duration,
+          resolution: media.resolution,
+          width: media.width,
+          height: media.height,
+          codec: media.codec,
+          audioCodec: media.audioCodec,
+          bitrate: media.bitrate,
+          frameRate: media.frameRate,
+          thumbnailPath: `/api/media/${media.id}/thumbnail`,
+          libraryFolderId: mobileFolder.id,
+          folderName: 'Mobile Uploads',
+          favorite: false,
+          createdAt: media.createdAt.toISOString(),
+          updatedAt: media.updatedAt.toISOString(),
+        };
+
+        res.status(201).json(formatted);
+      } catch (procErr: any) {
+        logger.error('server', `Failed to process uploaded video: ${procErr.message}`);
+        res.status(500).json({ error: 'Failed to process uploaded video' });
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
 
 export const getMediaList = async (req: Request, res: Response) => {
   try {

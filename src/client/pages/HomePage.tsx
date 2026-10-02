@@ -20,6 +20,7 @@ import { MediaItem, RoomItem } from '../../shared/types';
 import { MediaCard } from '../components/MediaCard';
 import { useSocket } from '../context/SocketContext';
 import { QRCodeModal } from '../components/QRCodeModal';
+import { MobileVideoShareModal } from '../components/MobileVideoShareModal';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -31,6 +32,7 @@ export const HomePage: React.FC = () => {
   const [activeRooms, setActiveRooms] = useState<RoomItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [showPhoneShareModal, setShowPhoneShareModal] = useState(false);
   const [lanInfo, setLanInfo] = useState<{ lanUrl: string; qrCode: string }>({ lanUrl: '', qrCode: '' });
 
   const loadMedia = async () => {
@@ -106,9 +108,9 @@ export const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-10 pb-20 animate-fade-in max-w-7xl mx-auto">
-      {/* Top Welcome Title */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 sm:space-y-10 pb-20 animate-fade-in max-w-7xl mx-auto px-2 sm:px-4">
+      {/* Top Welcome Title & Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
             Welcome back.
@@ -118,15 +120,26 @@ export const HomePage: React.FC = () => {
           </p>
         </div>
 
-        {lanInfo.lanUrl && (
+        <div className="flex items-center gap-2.5">
+          {/* Share Movie from Phone */}
           <button
-            onClick={() => setShowQrModal(true)}
-            className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#28292A] hover:bg-[#303134] text-[#C2E7FF] text-xs font-medium border border-[#3C4043]/50 transition-colors"
+            onClick={() => setShowPhoneShareModal(true)}
+            className="px-4 py-2 rounded-full bg-[#004A77] hover:bg-[#0842A0] text-[#C2E7FF] text-xs font-semibold flex items-center gap-2 transition-all shadow-sm active:scale-95"
           >
-            <QrCode className="w-3.5 h-3.5 text-[#A8C7FA]" />
-            <span>Connect Phone</span>
+            <Smartphone className="w-4 h-4 text-[#A8C7FA]" />
+            <span>Share Movie from Phone</span>
           </button>
-        )}
+
+          {lanInfo.lanUrl && (
+            <button
+              onClick={() => setShowQrModal(true)}
+              className="hidden sm:flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#28292A] hover:bg-[#303134] text-[#E3E3E3] text-xs font-medium border border-[#3C4043]/50 transition-colors"
+            >
+              <QrCode className="w-3.5 h-3.5 text-[#A8C7FA]" />
+              <span>Connect Phone</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 🎉 LIVE JOIN PARTY BANNERS */}
@@ -269,19 +282,28 @@ export const HomePage: React.FC = () => {
               <span className="uppercase font-mono text-xs">{heroItem.codec}</span>
             </div>
 
-            {/* Direct Dual Action Buttons */}
-            <div className="flex items-center gap-3 pt-2 flex-wrap">
+            {/* Direct Multi Action Buttons (Watch, Host Party, Play on PC) */}
+            <div className="flex items-center gap-2.5 pt-2 flex-wrap">
               <button
                 onClick={() => navigate(`/watch/${heroItem.id}`)}
-                className="m3-btn-primary px-7 py-3 text-sm font-bold shadow-glow-primary"
+                className="m3-btn-primary px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-bold shadow-sm active:scale-95"
               >
                 <Play className="w-4 h-4 fill-current" />
                 <span>WATCH HERE</span>
               </button>
 
               <button
+                onClick={() => navigate(`/rooms?createMedia=${heroItem.id}`)}
+                className="px-5 py-2.5 sm:py-3 rounded-full bg-[#004A77] hover:bg-[#0842A0] text-[#C2E7FF] text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all active:scale-95"
+                title="Host Watch Party for this movie"
+              >
+                <Users className="w-4 h-4 text-[#A8C7FA]" />
+                <span>HOST PARTY</span>
+              </button>
+
+              <button
                 onClick={() => handleCastHeroToHost(heroItem)}
-                className="m3-btn-secondary px-6 py-3 text-sm font-semibold"
+                className="m3-btn-secondary px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold"
                 title="Cast to Host Screen & Open Remote Control"
               >
                 <Monitor className="w-4 h-4 text-[#A8C7FA]" />
@@ -376,6 +398,14 @@ export const HomePage: React.FC = () => {
         <QRCodeModal
           initialTab="viewer"
           onClose={() => setShowQrModal(false)}
+        />
+      )}
+
+      {/* Share Movie from Phone Modal */}
+      {showPhoneShareModal && (
+        <MobileVideoShareModal
+          onClose={() => setShowPhoneShareModal(false)}
+          onUploaded={() => loadMedia()}
         />
       )}
     </div>

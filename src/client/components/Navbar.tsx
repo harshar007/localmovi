@@ -1,5 +1,3 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Tv, 
   QrCode, 
@@ -11,11 +9,13 @@ import {
   Sparkles,
   Wifi,
   WifiOff,
-  Film
+  Film,
+  UploadCloud
 } from 'lucide-react';
 import { useSocket } from '../context/SocketContext';
 import { api } from '../api/apiClient';
 import { QRCodeModal } from './QRCodeModal';
+import { MobileVideoShareModal } from './MobileVideoShareModal';
 
 export const Navbar: React.FC<{ onSearch?: (query: string) => void }> = ({ onSearch }) => {
   const navigate = useNavigate();
@@ -24,6 +24,7 @@ export const Navbar: React.FC<{ onSearch?: (query: string) => void }> = ({ onSea
 
   const [lanUrl, setLanUrl] = useState<string>('');
   const [showQrModal, setShowQrModal] = useState(false);
+  const [showPhoneShareModal, setShowPhoneShareModal] = useState(false);
   const [defaultQrTab, setDefaultQrTab] = useState<'viewer' | 'admin'>('viewer');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -89,7 +90,7 @@ export const Navbar: React.FC<{ onSearch?: (query: string) => void }> = ({ onSea
         </div>
 
         {/* Right: Quick Actions & Connect Phone Button */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           {/* Scanning indicator */}
           {scanProgress && scanProgress.status !== 'idle' && (
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#004A77] text-[#C2E7FF] text-xs font-medium animate-pulse">
@@ -98,18 +99,28 @@ export const Navbar: React.FC<{ onSearch?: (query: string) => void }> = ({ onSea
             </div>
           )}
 
+          {/* Share Movie from Phone */}
+          <button
+            onClick={() => setShowPhoneShareModal(true)}
+            className="px-3.5 py-1.5 rounded-full bg-[#004A77] hover:bg-[#0842A0] text-[#C2E7FF] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+            title="Share a video file from this phone or device"
+          >
+            <Smartphone className="w-3.5 h-3.5 text-[#A8C7FA]" />
+            <span className="hidden sm:inline">Share from Phone</span>
+            <span className="sm:hidden">Share</span>
+          </button>
+
           {/* Show QR / Connect Phone */}
           <button
             onClick={() => {
               setDefaultQrTab('viewer');
               setShowQrModal(true);
             }}
-            className="m3-btn-primary shadow-sm"
+            className="p-2 sm:px-3.5 sm:py-1.5 rounded-full bg-[#28292A] hover:bg-[#303134] text-[#E3E3E3] text-xs font-semibold flex items-center gap-1.5 border border-[#3C4043]/50 transition-colors"
             title="Scan QR Code to connect phone or tablet"
           >
-            <QrCode className="w-4 h-4" />
+            <QrCode className="w-4 h-4 text-[#A8C7FA]" />
             <span className="hidden sm:inline">Connect Phone</span>
-            <span className="sm:hidden">QR</span>
           </button>
 
           {/* Settings Shortcut */}
@@ -128,6 +139,13 @@ export const Navbar: React.FC<{ onSearch?: (query: string) => void }> = ({ onSea
         <QRCodeModal
           initialTab={defaultQrTab}
           onClose={() => setShowQrModal(false)}
+        />
+      )}
+
+      {/* Share Movie from Phone Modal */}
+      {showPhoneShareModal && (
+        <MobileVideoShareModal
+          onClose={() => setShowPhoneShareModal(false)}
         />
       )}
     </>

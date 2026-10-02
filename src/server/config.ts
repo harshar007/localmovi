@@ -13,10 +13,11 @@ export const THUMBNAILS_DIR = path.join(CACHE_DIR, 'thumbnails');
 export const TRANSCODE_DIR = path.join(CACHE_DIR, 'transcode');
 export const DATABASE_DIR = path.join(APP_DATA_DIR, 'database');
 export const LOGS_DIR = path.join(APP_DATA_DIR, 'logs');
+export const UPLOADS_DIR = path.join(APP_DATA_DIR, 'uploads');
 export const DB_PATH = path.join(DATABASE_DIR, 'localstream.db');
 
 // Ensure all essential directories exist
-[APP_DATA_DIR, CACHE_DIR, THUMBNAILS_DIR, TRANSCODE_DIR, DATABASE_DIR, LOGS_DIR].forEach((dir) => {
+[APP_DATA_DIR, CACHE_DIR, THUMBNAILS_DIR, TRANSCODE_DIR, DATABASE_DIR, LOGS_DIR, UPLOADS_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }

@@ -66,6 +66,49 @@ export const api = {
     request<{ id: string; favorite: boolean }>(`/media/${id}/favorite`, { method: 'PATCH' }),
   updateProgress: (id: string, data: { deviceId: string; position: number; duration: number; completed?: boolean }) =>
     request(`/media/${id}/progress`, { method: 'POST', body: JSON.stringify(data) }),
+  uploadMedia: (file: File, onProgress?: (percent: number) => void): Promise<MediaItem> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_BASE}/media/upload`, true);
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+      xhr.setRequestHeader('x-filename', encodeURIComponent(file.name));
+
+      const token = getAuthToken();
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      if (xhr.upload && onProgress) {
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            onProgress(percent);
+          }
+        };
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const res = JSON.parse(xhr.responseText);
+            resolve(res);
+          } catch (err) {
+            reject(err);
+          }
+        } else {
+          try {
+            const errRes = JSON.parse(xhr.responseText);
+            reject(new Error(errRes.error || `Upload failed: ${xhr.statusText}`));
+          } catch {
+            reject(new Error(`Upload failed with HTTP ${xhr.status}`));
+          }
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.send(file);
+    });
+  },
 
   // Folders
   getFolders: () => request<LibraryFolderItem[]>('/folders'),

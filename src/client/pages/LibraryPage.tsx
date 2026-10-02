@@ -16,6 +16,7 @@ import { api } from '../api/apiClient';
 import { MediaItem, LibraryFolderItem } from '../../shared/types';
 import { MediaCard } from '../components/MediaCard';
 import { useSocket } from '../context/SocketContext';
+import { MobileVideoShareModal } from '../components/MobileVideoShareModal';
 
 export const LibraryPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -25,6 +26,7 @@ export const LibraryPage: React.FC = () => {
   const [folders, setFolders] = useState<LibraryFolderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [layout, setLayout] = useState<'grid' | 'list'>('grid');
+  const [showPhoneShareModal, setShowPhoneShareModal] = useState(false);
 
   // Filters & Sorting state from URL or defaults
   const search = searchParams.get('search') || '';
@@ -74,25 +76,63 @@ export const LibraryPage: React.FC = () => {
     fetchMedia();
   }, [search, folderId, resolution, codec, favorite, sort, order, deviceId]);
 
+  // Extract distinct subfolders or folder names from media items
+  const subfolders = React.useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of mediaList) {
+      // Extract subfolder from filePath if available
+      const parts = item.filePath.split(/[/\\]/);
+      if (parts.length >= 3) {
+        const subfolderName = parts[parts.length - 2];
+        if (subfolderName && subfolderName !== 'media' && subfolderName !== 'videos') {
+          map.set(subfolderName, (map.get(subfolderName) || 0) + 1);
+        }
+      }
+    }
+    return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
+  }, [mediaList]);
+
+  const [selectedSubfolder, setSelectedSubfolder] = useState<string>('all');
+
+  const displayedMedia = React.useMemo(() => {
+    if (selectedSubfolder === 'all') return mediaList;
+    return mediaList.filter((m) => {
+      const parts = m.filePath.split(/[/\\]/);
+      if (parts.length >= 3) {
+        return parts[parts.length - 2] === selectedSubfolder;
+      }
+      return false;
+    });
+  }, [mediaList, selectedSubfolder]);
+
   return (
-    <div className="space-y-6 pb-20 animate-fade-in text-[#E3E3E3] max-w-7xl mx-auto">
+    <div className="space-y-6 pb-20 animate-fade-in text-[#E3E3E3] max-w-7xl mx-auto px-2 sm:px-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center gap-2.5">
             <Film className="w-7 h-7 text-[#A8C7FA]" />
-            Library
+            Movie Library
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#28292A] border border-[#3C4043] text-[#A0A0A0] font-mono font-normal">
-              {mediaList.length} movies
+              {displayedMedia.length} videos
             </span>
           </h1>
           <p className="text-xs sm:text-sm text-[#A0A0A0] mt-0.5">
-            Browse, search, and stream your entire movie collection.
+            Select a folder or movie from your phone to host, stream, or cast.
           </p>
         </div>
 
-        {/* Layout Switcher */}
-        <div className="flex items-center gap-2">
+        {/* Actions & Layout Switcher */}
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setShowPhoneShareModal(true)}
+            className="px-3.5 py-1.5 rounded-full bg-[#004A77] hover:bg-[#0842A0] text-[#C2E7FF] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+            title="Share a video from this phone or tablet"
+          >
+            <Smartphone className="w-3.5 h-3.5 text-[#A8C7FA]" />
+            <span>Share from Phone</span>
+          </button>
+
           <div className="flex items-center p-1 rounded-full bg-[#28292A] border border-[#3C4043]/50">
             <button
               onClick={() => setLayout('grid')}
@@ -116,6 +156,116 @@ export const LibraryPage: React.FC = () => {
         </div>
       </div>
 
+      {/* 📁 FOLDER SELECTOR ROW (Optimized for Mobile & Tablet Touch Navigation) */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-xs text-[#A0A0A0] px-1">
+          <span className="font-semibold uppercase tracking-wider flex items-center gap-1.5 text-[11px] text-[#A8C7FA]">
+            <FolderOpen className="w-3.5 h-3.5" />
+            Browse by Folder
+          </span>
+          <span className="font-mono text-[11px]">
+            {subfolders.length > 0 ? `${subfolders.length + 1} Folders` : `${folders.length} Folders`}
+          </span>
+        </div>
+
+        {/* Horizontal Scrollable Folder Chips */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+          <button
+            onClick={() => {
+              setSelectedSubfolder('all');
+              updateParam('folderId', null);
+            }}
+            className={`px-4 py-2 rounded-2xl text-xs font-semibold flex items-center gap-2 shrink-0 transition-all active:scale-95 ${
+              selectedSubfolder === 'all' && !folderId
+                ? 'bg-[#A8C7FA] text-[#062E6F] shadow-sm font-bold'
+                : 'bg-[#1E1F20] text-[#E3E3E3] hover:bg-[#28292A] border border-[#3C4043]/50'
+            }`}
+          >
+            <FolderOpen className="w-4 h-4" />
+            <span>All Movies</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+              selectedSubfolder === 'all' && !folderId ? 'bg-[#004A77] text-[#C2E7FF]' : 'bg-[#28292A] text-[#A0A0A0]'
+            }`}>
+              {mediaList.length}
+            </span>
+          </button>
+
+          {/* Subfolders detected in library */}
+          {subfolders.map((sf) => (
+            <button
+              key={sf.name}
+              onClick={() => setSelectedSubfolder(sf.name)}
+              className={`px-4 py-2 rounded-2xl text-xs font-semibold flex items-center gap-2 shrink-0 transition-all active:scale-95 ${
+                selectedSubfolder === sf.name
+                  ? 'bg-[#A8C7FA] text-[#062E6F] shadow-sm font-bold'
+                  : 'bg-[#1E1F20] text-[#E3E3E3] hover:bg-[#28292A] border border-[#3C4043]/50'
+              }`}
+            >
+              <FolderOpen className="w-4 h-4" />
+              <span>{sf.name}</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                selectedSubfolder === sf.name ? 'bg-[#004A77] text-[#C2E7FF]' : 'bg-[#28292A] text-[#A0A0A0]'
+              }`}>
+                {sf.count}
+              </span>
+            </button>
+          ))}
+
+          {/* Base Folders */}
+          {folders.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => {
+                setSelectedSubfolder('all');
+                updateParam('folderId', f.id);
+              }}
+              className={`px-4 py-2 rounded-2xl text-xs font-semibold flex items-center gap-2 shrink-0 transition-all active:scale-95 ${
+                folderId === f.id
+                  ? 'bg-[#004A77] text-[#C2E7FF] border border-[#A8C7FA] shadow-sm'
+                  : 'bg-[#1E1F20] text-[#E3E3E3] hover:bg-[#28292A] border border-[#3C4043]/50'
+              }`}
+            >
+              <FolderOpen className="w-4 h-4 text-[#A8C7FA]" />
+              <span>{f.name || 'Main Folder'}</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[#28292A] text-[#A0A0A0]">
+                {f.mediaCount || 0}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 🚀 Active Folder Host Bar */}
+      {selectedSubfolder !== 'all' && (
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-[#004A77]/80 via-[#1E1F20] to-[#1E1F20] border border-[#A8C7FA]/40 shadow-elevation-1 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#004A77] text-[#C2E7FF] flex items-center justify-center font-bold">
+              <FolderOpen className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-white">
+                Folder: <span className="text-[#A8C7FA]">{selectedSubfolder}</span>
+              </h3>
+              <p className="text-[11px] text-[#A0A0A0]">
+                {displayedMedia.length} movie{displayedMedia.length === 1 ? '' : 's'} available to host or stream.
+              </p>
+            </div>
+          </div>
+
+          {displayedMedia.length > 0 && (
+            <button
+              onClick={() => {
+                window.location.href = `/rooms?createMedia=${displayedMedia[0].id}`;
+              }}
+              className="m3-btn-primary py-2 px-4 text-xs font-bold shadow-sm active:scale-95 w-full sm:w-auto"
+            >
+              <Film className="w-3.5 h-3.5" />
+              <span>Host Party from this Folder</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Filter Toolbar (Material 3 Pill Filters) */}
       <div className="bg-[#1E1F20] rounded-3xl p-4 border border-[#3C4043]/50 shadow-elevation-1 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Search */}
@@ -123,7 +273,7 @@ export const LibraryPage: React.FC = () => {
           <Search className="w-4 h-4 text-[#A0A0A0] absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Filter by title..."
+            placeholder="Search movie title..."
             value={search}
             onChange={(e) => updateParam('search', e.target.value)}
             className="w-full pl-9 pr-4 py-2 text-xs bg-[#28292A] border border-[#3C4043]/60 focus:border-[#A8C7FA] rounded-full text-white placeholder-[#A0A0A0] focus:outline-none"
@@ -144,20 +294,6 @@ export const LibraryPage: React.FC = () => {
             <Heart className={`w-3.5 h-3.5 ${favorite ? 'fill-rose-400' : ''}`} />
             <span>Favorites</span>
           </button>
-
-          {/* Folder Select */}
-          {folders.length > 1 && (
-            <select
-              value={folderId}
-              onChange={(e) => updateParam('folderId', e.target.value)}
-              className="px-3 py-1.5 rounded-full bg-[#28292A] border border-[#3C4043]/40 text-xs text-[#E3E3E3] focus:outline-none shrink-0"
-            >
-              <option value="">All Folders</option>
-              {folders.map((f) => (
-                <option key={f.id} value={f.id}>{f.name || f.folderPath}</option>
-              ))}
-            </select>
-          )}
 
           {/* Resolution Filter */}
           <select
@@ -192,34 +328,43 @@ export const LibraryPage: React.FC = () => {
             <div key={i} className="aspect-video rounded-2xl bg-[#1E1F20] animate-pulse" />
           ))}
         </div>
-      ) : mediaList.length === 0 ? (
+      ) : displayedMedia.length === 0 ? (
         <div className="p-12 text-center rounded-3xl bg-[#1E1F20] border border-[#3C4043]/50 space-y-4 max-w-md mx-auto my-12">
           <Film className="w-12 h-12 text-[#A0A0A0] mx-auto opacity-30" />
-          <h3 className="text-base font-bold text-white">No Movies Found</h3>
+          <h3 className="text-base font-bold text-white">No Movies Found in this Folder</h3>
           <p className="text-xs text-[#A0A0A0]">
-            {search ? 'Try searching for a different title or clearing your filters.' : 'No videos were found in your indexed folders.'}
+            {search ? 'Try searching for a different title or clearing your filters.' : 'No videos were found in this folder.'}
           </p>
-          {search && (
-            <button
-              onClick={() => setSearchParams({})}
-              className="m3-btn-secondary mx-auto text-xs"
-            >
-              Clear Filters
-            </button>
-          )}
+          <button
+            onClick={() => {
+              setSelectedSubfolder('all');
+              setSearchParams({});
+            }}
+            className="m3-btn-secondary mx-auto text-xs"
+          >
+            Show All Movies
+          </button>
         </div>
       ) : layout === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {mediaList.map((item) => (
+          {displayedMedia.map((item) => (
             <MediaCard key={item.id} media={item} onFavoriteChange={fetchMedia} layout="grid" />
           ))}
         </div>
       ) : (
         <div className="space-y-3">
-          {mediaList.map((item) => (
+          {displayedMedia.map((item) => (
             <MediaCard key={item.id} media={item} onFavoriteChange={fetchMedia} layout="list" />
           ))}
         </div>
+      )}
+
+      {/* Share Movie from Phone Modal */}
+      {showPhoneShareModal && (
+        <MobileVideoShareModal
+          onClose={() => setShowPhoneShareModal(false)}
+          onUploaded={() => fetchMedia()}
+        />
       )}
     </div>
   );
