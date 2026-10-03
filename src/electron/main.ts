@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron';
 import path from 'path';
 import { startServer } from '../server';
@@ -7,6 +8,13 @@ let mainWindow: BrowserWindow | null = null;
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 async function createWindow() {
+  const iconCandidates = [
+    path.join(__dirname, '../../assets/icon.png'),
+    path.join(__dirname, '../assets/icon.png'),
+    path.join(process.cwd(), 'assets/icon.png'),
+  ];
+  const appIcon = iconCandidates.find((p) => fs.existsSync(p));
+
   mainWindow = new BrowserWindow({
     width: 1380,
     height: 860,
@@ -14,6 +22,7 @@ async function createWindow() {
     minHeight: 700,
     backgroundColor: '#090a0f',
     title: 'LocalStream - LAN Video Hub & Host Player',
+    icon: appIcon,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

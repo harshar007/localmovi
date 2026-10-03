@@ -55,8 +55,8 @@ export const Navbar: React.FC<{ onSearch?: (query: string) => void }> = ({ onSea
         {/* Left: Brand / Logo */}
         <div className="flex items-center gap-6">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 rounded-2xl bg-[#A8C7FA] text-[#062E6F] flex items-center justify-center font-black shadow-sm group-hover:scale-105 transition-transform">
-              <Tv className="w-5 h-5 stroke-[2.5]" />
+            <div className="w-9 h-9 rounded-2xl flex items-center justify-center font-black shadow-sm group-hover:scale-105 transition-transform overflow-hidden">
+              <img src="/logo.svg" alt="LocalStream Logo" className="w-full h-full object-contain" />
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-lg font-bold tracking-tight text-[#E3E3E3] group-hover:text-white transition-colors">

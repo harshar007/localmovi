@@ -29,8 +29,19 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "assets/**/*",
       "prisma/**/*",
-      "package.json"
+      "package.json",
+      {
+        "from": "node_modules/.prisma",
+        "to": "node_modules/.prisma",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "node_modules/@prisma",
+        "to": "node_modules/@prisma",
+        "filter": ["**/*"]
+      }
     ],
     "asar": true,
     "asarUnpack": [
@@ -40,6 +51,7 @@
       "**/node_modules/@ffprobe-installer/**/*"
     ],
     "win": {
+      "icon": "assets/icon.ico",
       "target": [
         {
           "target": "nsis",

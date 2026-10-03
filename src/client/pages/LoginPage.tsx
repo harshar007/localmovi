@@ -32,8 +32,8 @@ export const LoginPage: React.FC = () => {
     <div className="min-h-[70vh] flex items-center justify-center p-4">
       <div className="w-full max-w-sm glass-panel rounded-3xl p-8 border border-border/60 shadow-2xl space-y-6 animate-fade-in">
         <div className="text-center space-y-2">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center mx-auto shadow-glow-primary">
-            <Tv className="w-7 h-7 text-white" />
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto shadow-glow-primary overflow-hidden">
+            <img src="/logo.svg" alt="LocalStream Logo" className="w-full h-full object-contain" />
           </div>
           <h2 className="text-xl font-black text-white">LocalStream Sign In</h2>
           <p className="text-xs text-slate-400">Admin and viewer authentication</p>

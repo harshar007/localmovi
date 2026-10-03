@@ -8,6 +8,22 @@ if (!fs.existsSync(DATABASE_DIR)) {
   fs.mkdirSync(DATABASE_DIR, { recursive: true });
 }
 
+// Point Prisma to unpacked engine binary when running inside packaged Electron
+const resourcesPath = (process as any).resourcesPath;
+if (resourcesPath) {
+  const unpackedEnginePath = path.join(
+    resourcesPath,
+    'app.asar.unpacked',
+    'node_modules',
+    '.prisma',
+    'client',
+    'query_engine-windows.dll.node'
+  );
+  if (fs.existsSync(unpackedEnginePath)) {
+    process.env.PRISMA_QUERY_ENGINE_LIBRARY = unpackedEnginePath;
+  }
+}
+
 export const prisma = new PrismaClient({
   datasources: {
     db: {
