@@ -114,6 +114,25 @@ export const MediaCard: React.FC<{
     navigate(`/rooms?createMedia=${media.id}`);
   };
 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setIsDeleting(true);
+      await api.deleteMedia(media.id, true);
+      setShowDeleteModal(false);
+      if (onDelete) onDelete(media.id);
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete movie');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const progressPercent = media.progress && media.progress.duration > 0
     ? Math.min(100, Math.round((media.progress.position / media.progress.duration) * 100))
     : 0;
@@ -223,8 +242,18 @@ export const MediaCard: React.FC<{
               className={`p-2 rounded-full border border-[#3C4043]/50 transition-colors ${
                 favorite ? 'text-rose-400 bg-rose-500/20 border-rose-500/40' : 'text-[#A0A0A0] hover:text-white bg-[#28292A]'
               }`}
+              title="Add to Favorites"
             >
               <Heart className={`w-3.5 h-3.5 ${favorite ? 'fill-rose-400' : ''}`} />
+            </button>
+
+            {/* Delete button */}
+            <button
+              onClick={handleDeleteClick}
+              className="p-2 rounded-full border border-[#3C4043]/50 text-[#A0A0A0] hover:text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/30 transition-colors"
+              title="Delete video from library"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -320,8 +349,16 @@ export const MediaCard: React.FC<{
                 className={`p-1.5 rounded-full backdrop-blur-xs transition-colors ${
                   favorite ? 'bg-rose-500/30 text-rose-400' : 'bg-black/60 text-slate-300 hover:text-white'
                 }`}
+                title="Favorite"
               >
                 <Heart className={`w-3.5 h-3.5 ${favorite ? 'fill-rose-400' : ''}`} />
+              </button>
+              <button
+                onClick={handleDeleteClick}
+                className="p-1.5 rounded-full bg-black/60 hover:bg-rose-600/90 text-slate-300 hover:text-white backdrop-blur-xs transition-colors"
+                title="Delete video from library"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -406,6 +443,55 @@ export const MediaCard: React.FC<{
           videoTitle={media.title}
           onClose={() => setShowQrModal(false)}
         />
+      )}
+
+      {/* Easy Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowDeleteModal(false);
+          }}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl p-6 bg-[#1E1F20] border border-rose-500/40 shadow-elevation-3 space-y-4 text-center animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-14 h-14 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+              <Trash2 className="w-7 h-7 stroke-[2.5]" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-white">Delete from Library?</h3>
+              <p className="text-xs text-[#A0A0A0] line-clamp-2 px-2">
+                Are you sure you want to remove <span className="text-white font-semibold font-mono">"{media.title}"</span>?
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 pt-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDeleteModal(false);
+                }}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 rounded-full bg-[#28292A] hover:bg-[#303134] text-[#E3E3E3] text-xs font-semibold border border-[#3C4043]/50 transition-colors"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition-transform active:scale-95 flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? 'Deleting...' : 'Delete Movie'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

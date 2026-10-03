@@ -371,7 +371,7 @@ export const HomePage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {continueWatching.slice(0, 4).map((item) => (
-              <MediaCard key={item.id} media={item} onFavoriteChange={loadMedia} />
+              <MediaCard key={item.id} media={item} onFavoriteChange={loadMedia} onDelete={loadMedia} />
             ))}
           </div>
         </section>
@@ -393,7 +393,7 @@ export const HomePage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {mediaList.slice(0, 10).map((item) => (
-              <MediaCard key={item.id} media={item} onFavoriteChange={loadMedia} />
+              <MediaCard key={item.id} media={item} onFavoriteChange={loadMedia} onDelete={loadMedia} />
             ))}
           </div>
         </section>
@@ -412,7 +412,7 @@ export const HomePage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {favorites.map((item) => (
-              <MediaCard key={item.id} media={item} onFavoriteChange={loadMedia} />
+              <MediaCard key={item.id} media={item} onFavoriteChange={loadMedia} onDelete={loadMedia} />
             ))}
           </div>
         </section>

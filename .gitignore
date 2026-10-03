@@ -2,9 +2,12 @@ node_modules/
 dist/
 dist-client/
 dist-server/
+dist-electron/
+release/
 build/
 .env
 .env.local
 *.log
 data/
 .DS_Store
+

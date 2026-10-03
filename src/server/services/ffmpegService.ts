@@ -8,7 +8,11 @@ import { THUMBNAILS_DIR, TRANSCODE_DIR } from '../config';
 try {
   const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
   if (ffmpegInstaller && ffmpegInstaller.path) {
-    ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+    let ffmpegPath = ffmpegInstaller.path;
+    if (ffmpegPath.includes('app.asar')) {
+      ffmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked');
+    }
+    ffmpeg.setFfmpegPath(ffmpegPath);
   }
 } catch (err) {
   logger.warn('ffmpeg', 'Failed to load @ffmpeg-installer/ffmpeg, using system ffmpeg if available', err);
@@ -17,7 +21,11 @@ try {
 try {
   const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
   if (ffprobeInstaller && ffprobeInstaller.path) {
-    ffmpeg.setFfprobePath(ffprobeInstaller.path);
+    let ffprobePath = ffprobeInstaller.path;
+    if (ffprobePath.includes('app.asar')) {
+      ffprobePath = ffprobePath.replace('app.asar', 'app.asar.unpacked');
+    }
+    ffmpeg.setFfprobePath(ffprobePath);
   }
 } catch (err) {
   logger.warn('ffmpeg', 'Failed to load @ffprobe-installer/ffprobe, using system ffprobe if available', err);

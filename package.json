@@ -15,7 +15,53 @@
     "start": "node dist-server/server/index.js",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:portable": "npm run build && electron-builder --win portable",
+    "dist:nsis": "npm run build && electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.localstream.app",
+    "productName": "LocalStream",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "prisma/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/@prisma/client/**/*",
+      "**/node_modules/.prisma/**/*",
+      "**/node_modules/@ffmpeg-installer/**/*",
+      "**/node_modules/@ffprobe-installer/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LocalStream"
+    }
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",

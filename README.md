@@ -9,7 +9,6 @@
   ╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝       ╚═══╝  ╚═╝     
    L O C A L M O V I   •   T H E   L A N   C I N E M A
 ```
-
 # 🎬 LOCALMOVI `v0.1.0 (Version 0)`
 ### *Your Ultra-Fast, Private Local Network Video Streaming Appliance & Watch Party Hub*
 

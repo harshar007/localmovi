@@ -19,7 +19,16 @@ import * as systemController from './controllers/systemController';
 import * as authController from './controllers/authController';
 
 const app = express();
-const server = http.createServer(app);
+const server = http.createServer({
+  requestTimeout: 0, // Disable requestTimeout for large movie streaming and uploads
+  headersTimeout: 0,
+  keepAliveTimeout: 120000,
+}, app);
+
+// Ensure all socket & server timeouts are disabled for large media transfers
+server.timeout = 0;
+server.requestTimeout = 0;
+server.headersTimeout = 0;
 
 // Middlewares
 app.use(cors({
@@ -31,8 +40,13 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Request logging middleware
+// Global timeout & noDelay middleware
 app.use((req, res, next) => {
+  req.setTimeout(0);
+  if (req.socket) {
+    req.socket.setTimeout(0);
+    req.socket.setNoDelay(true);
+  }
   if (!req.path.startsWith('/api/system/stats') && !req.path.endsWith('/thumbnail')) {
     logger.debug('server', `${req.method} ${req.path}`);
   }
@@ -86,8 +100,15 @@ app.post('/api/system/settings', authService.authenticate('admin'), systemContro
 app.post('/api/system/shutdown', authService.authenticate('admin'), systemController.shutdownServer);
 
 // Serve client frontend static files if built
-const clientDistPath = path.resolve(__dirname, '../../dist');
-if (fs.existsSync(clientDistPath)) {
+const candidatePaths = [
+  path.resolve(__dirname, '../../dist'),
+  path.resolve(__dirname, '../dist'),
+  path.resolve(process.cwd(), 'dist'),
+  path.resolve(__dirname, '../../../dist'),
+];
+const clientDistPath = candidatePaths.find((p) => fs.existsSync(p) && fs.existsSync(path.join(p, 'index.html')));
+
+if (clientDistPath) {
   app.use(express.static(clientDistPath));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api')) {

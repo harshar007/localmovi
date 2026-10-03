@@ -15,7 +15,8 @@ import {
   QrCode,
   Smartphone,
   Play,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react';
 import { api } from '../api/apiClient';
 import { MediaItem } from '../../shared/types';
@@ -37,6 +38,8 @@ export const WatchPage: React.FC = () => {
   const [partyName, setPartyName] = useState('');
   const [favorite, setFavorite] = useState(false);
   const [castToast, setCastToast] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -57,6 +60,18 @@ export const WatchPage: React.FC = () => {
       })
       .finally(() => setLoading(false));
   }, [id, deviceId, deviceName]);
+
+  const handleDeleteMedia = async () => {
+    if (!media) return;
+    try {
+      setIsDeleting(true);
+      await api.deleteMedia(media.id, true);
+      navigate('/library');
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete movie');
+      setIsDeleting(false);
+    }
+  };
 
   const handleFavoriteToggle = async () => {
     if (!media) return;
@@ -247,6 +262,15 @@ export const WatchPage: React.FC = () => {
             >
               <Heart className={`w-4 h-4 ${favorite ? 'fill-rose-400' : ''}`} />
             </button>
+
+            {/* Delete Movie */}
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="p-2.5 rounded-full bg-[#28292A] hover:bg-rose-500/20 text-[#A0A0A0] hover:text-rose-400 border border-[#3C4043]/50 hover:border-rose-500/40 transition-colors"
+              title="Delete movie from library"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -362,6 +386,51 @@ export const WatchPage: React.FC = () => {
           videoTitle={media.title}
           onClose={() => setShowQrModal(false)}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in"
+          onClick={() => setShowDeleteModal(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl p-6 bg-[#1E1F20] border border-rose-500/40 shadow-elevation-3 space-y-4 text-center animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-14 h-14 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+              <Trash2 className="w-7 h-7 stroke-[2.5]" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-white">Delete Movie?</h3>
+              <p className="text-xs text-[#A0A0A0] line-clamp-2 px-2">
+                Are you sure you want to remove <span className="text-white font-semibold font-mono">"{media.title}"</span> from your library?
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 rounded-full bg-[#28292A] hover:bg-[#303134] text-[#E3E3E3] text-xs font-semibold border border-[#3C4043]/50 transition-colors"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDeleteMedia}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition-transform active:scale-95 flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? 'Deleting...' : 'Delete Movie'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

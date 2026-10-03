@@ -23,7 +23,7 @@ services:
       # Host video directories mounted into container
       - ./media:/media/local:ro
       - "C:/Users/ajaysaagar developer/Videos:/media/videos:ro"
-      - "D:/:/media/d_drive:ro"
+      # - "D:/:/media/d_drive:ro"  # Uncomment or change if you have a D: drive or other storage
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/auth/status"]

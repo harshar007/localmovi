@@ -351,13 +351,13 @@ export const LibraryPage: React.FC = () => {
       ) : layout === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {displayedMedia.map((item) => (
-            <MediaCard key={item.id} media={item} onFavoriteChange={fetchMedia} layout="grid" />
+            <MediaCard key={item.id} media={item} onFavoriteChange={fetchMedia} onDelete={fetchMedia} layout="grid" />
           ))}
         </div>
       ) : (
         <div className="space-y-3">
           {displayedMedia.map((item) => (
-            <MediaCard key={item.id} media={item} onFavoriteChange={fetchMedia} layout="list" />
+            <MediaCard key={item.id} media={item} onFavoriteChange={fetchMedia} onDelete={fetchMedia} layout="list" />
           ))}
         </div>
       )}
