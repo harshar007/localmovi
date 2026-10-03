@@ -1,6 +1,6 @@
 ﻿{
     "name":  "localstream",
-    "version":  "1",
+    "version":  "1.0.1",
     "description":  "LocalStream - Self-Hosted LAN Video Streaming \u0026 Host PC Remote Control",
     "author":  "harshar007",
     "repository":  {
