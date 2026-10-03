@@ -2,6 +2,11 @@
   "name": "localstream",
   "version": "1.0.0",
   "description": "LocalStream - Self-Hosted LAN Video Streaming & Host PC Remote Control",
+  "author": "harshar007",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/harshar007/localmovi.git"
+  },
   "main": "dist-electron/electron/main.js",
   "scripts": {
     "dev:server": "ts-node src/server/index.ts",
@@ -18,11 +23,20 @@
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
     "dist:portable": "npm run build && electron-builder --win portable",
-    "dist:nsis": "npm run build && electron-builder --win nsis"
+    "dist:nsis": "npm run build && electron-builder --win nsis",
+    "release": "powershell -ExecutionPolicy Bypass -File scripts/release.ps1",
+    "release:patch": "npm version patch && git push && git push --tags",
+    "release:minor": "npm version minor && git push && git push --tags",
+    "release:major": "npm version major && git push && git push --tags"
   },
   "build": {
     "appId": "com.localstream.app",
     "productName": "LocalStream",
+    "publish": {
+      "provider": "github",
+      "owner": "harshar007",
+      "repo": "localmovi"
+    },
     "directories": {
       "output": "release"
     },

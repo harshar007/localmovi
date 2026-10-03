@@ -1,4 +1,4 @@
-name: Release Build
+name: Automated Release
 
 on:
   push:
@@ -11,11 +11,11 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build & Publish Windows Executables
+    name: Build & Publish Release
     runs-on: windows-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -30,10 +30,27 @@ jobs:
       - name: Generate Prisma Client
         run: npm run prisma:generate
 
-      - name: Build Application
+      - name: Build Web, Server & Electron
         run: npm run build
 
-      - name: Build & Publish Electron Release
+      - name: Build Windows Executables
+        run: npx electron-builder --win
+
+      - name: Compress Release Assets
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "release/LocalStream 1.0.0.exe", "release/LocalStream Setup 1.0.0.exe" -DestinationPath "release/LocalStream-Windows-Binaries.zip" -Force
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release/*.exe
+            release/*.zip
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win --publish always
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
